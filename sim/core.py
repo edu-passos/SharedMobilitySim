@@ -46,6 +46,8 @@ class Sim:
 
         # Accumulators / logs
         self.logs: List[dict] = []
+        N = cfg.capacity.shape[0]
+        self.waiting = np.zeros(N, dtype=int)
 
     # --------------------------------------------------
 
@@ -70,8 +72,20 @@ class Sim:
         if event_fac is not None:
             lam_eff = lam_eff * event_fac
         A = self.rng.poisson(lam_eff)                 # arrivals per station
-        served = np.minimum(self.x, A)
-        unmet = A - served
+        # add to waiting queue
+        self.waiting += A
+
+        # vehicles available
+        can_serve = np.minimum(self.x, self.waiting)
+        self.waiting -= can_serve  # those get served
+        unmet = self.waiting  # people still waiting after service
+
+        demand_total = int(A.sum())
+        served_total = int(can_serve.sum())
+        # unmet requests *for this tick* (new arrivals that didn’t start)
+        unmet_tick = int((A - can_serve).sum())
+        # queue length after service
+        queue_total = int(self.waiting.sum())
 
         # Average SoC at moment of departure (before decrement)
         avg_at_depart = np.zeros_like(self.s, dtype=float)
@@ -79,13 +93,13 @@ class Sim:
         avg_at_depart[mask_prior] = self.m[mask_prior] / self.x[mask_prior]
 
         # Remove departing vehicles + their SoC mass
-        if served.sum():
-            self.m -= served * avg_at_depart
-            self.x -= served
+        if can_serve.sum():
+            self.m -= can_serve * avg_at_depart
+            self.x -= can_serve
 
         # 2) Spawn trips (schedule arrivals with s_depart carried)
-        if served.sum():
-            for i, k in enumerate(served):
+        if can_serve.sum():
+            for i, k in enumerate(can_serve):
                 if k <= 0:
                     continue
                 dests = self.rng.choice(N, size=int(k), p=P_t[i])
@@ -162,14 +176,20 @@ class Sim:
 
         self.logs.append({
             "t_min": self.t,
-            "unmet": int(unmet.sum()),
+
+            # demand/service
+            "demand_total": demand_total,
+            "served_total": served_total,
+            "unmet": unmet_tick,
+            "queue_total": queue_total,
+
             "availability": float((self.x > 0).mean()),
             "reloc_km": reloc_km,
             "plugged": int(plan.sum()),
             "charge_energy_kwh": energy_kwh,
             "charge_cost_eur": charge_cost,
-            "overflow_rerouted": int(locals().get("overflow_rerouted", 0)),
-            "overflow_extra_min": float(locals().get("overflow_extra_min", 0.0)),
+            "overflow_rerouted": int(overflow_rerouted),
+            "overflow_extra_min": float(overflow_extra_min),
             "soc_mean": float(np.mean(self.s)),
             "full_ratio": float(np.mean(self.x == self.cfg.capacity)),
             "empty_ratio": float(np.mean(self.x == 0)),

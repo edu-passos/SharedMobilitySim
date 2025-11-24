@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import yaml
 
-from control.policies import REGISTRY as POLICY_REGISTRY
+from control.baselines import plan_charging_greedy, plan_greedy
 from sim.core import Sim, SimConfig
 from sim.weather_mc import make_default_weather_mc as weather_mc
 from sim.demand import effective_lambda
@@ -14,21 +14,6 @@ def main(cfg_path):
     with open(cfg_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
-    # read planner configuration from YAML
-    ops_cfg = cfg.get("ops", {})
-    planners_cfg = ops_cfg.get("planners", {})
-
-    reloc_cfg = planners_cfg.get("relocation", {"name": "greedy", "params": {}})
-    charge_cfg = planners_cfg.get("charging", {"name": "greedy", "params": {}})
-
-    reloc_name = reloc_cfg.get("name", "greedy")
-    reloc_params = reloc_cfg.get("params", {}) or {}
-
-    charge_name = charge_cfg.get("name", "greedy")
-    charge_params = charge_cfg.get("params", {}) or {}
-
-    reloc_planner = POLICY_REGISTRY.get_relocation(reloc_name)
-    charge_planner = POLICY_REGISTRY.get_charging(charge_name)
     N = int(cfg["network"]["n_stations"])
     C = np.full(N, int(cfg["network"]["capacity_default"]))
     tmin = np.array(cfg["network"]["travel_time_min"], dtype=float).reshape(N, N)
@@ -71,13 +56,13 @@ def main(cfg_path):
 
             lam_t = effective_lambda(base_lambda, hour, weather_fac=w_fac, event_fac_vec= events_matrix[step])
 
-            reloc = reloc_planner(
+            reloc = plan_greedy(
                 sim.x, simcfg.capacity, simcfg.travel_min,
-                params=reloc_params
+                low=0.25, high=0.8, target=0.6, hysteresis=0.03, max_moves=50
             )
-            charge_plan = charge_planner(
+            charge_plan = plan_charging_greedy(
                 sim.x, sim.s, simcfg.chargers, lam_t,
-                params=charge_params
+                threshold_quantile=0.5  # only plug top-50% urgent stations
             )
 
             sim.step(lam_t, P, weather_fac=1.0, event_fac=None,
@@ -94,6 +79,8 @@ def main(cfg_path):
         raise
 
     unmet_total = int(sum(r["unmet"] for r in sim.logs))
+    max_queue = max(r.get("queue_total", 0) for r in sim.logs)
+    avg_queue = float(np.mean([r.get("queue_total", 0) for r in sim.logs]))
     avail_avg = float(np.mean([r["availability"] for r in sim.logs]))
     energy_kwh = float(sum(r.get("charge_energy_kwh", 0.0) for r in sim.logs))
     energy_eur = float(sum(r.get("charge_cost_eur", 0.0) for r in sim.logs))
@@ -115,6 +102,9 @@ def main(cfg_path):
     print({
         "unmet_total": unmet_total,
         "availability_avg": round(avail_avg, 3),
+
+        "queue_total_max": max_queue,
+        "queue_total_avg": round(avg_queue, 2),
 
         "relocation_km_total": round(reloc_km_tot, 2),
         "reloc_ops_total": reloc_ops_total,

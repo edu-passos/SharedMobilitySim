@@ -251,7 +251,7 @@ network:
   - -8.6546998
   - -8.6647837
 demand:
-  base_lambda_per_dt: 0.8
+  base_lambda_per_dt: 0.35
 energy:
   chargers_per_station:
   - 2
@@ -282,20 +282,12 @@ ops:
     low: 0.2
     high: 0.8
 
-  planners:
-    relocation:
-      name: greedy
-      params:
-        low: 0.25
-        high: 0.8
-        target: 0.6
-        hysteresis: 0.03
-        max_moves: 50
 
-    charging:
-      name: greedy
-      params:
-        threshold_quantile: 0.5
-
-
+score:
+  # J_run = α * (1 - availability_avg)
+  #       + β * relocation_km_total
+  #       + γ * charging_cost_eur_total
+  alpha_unavailability: 100.0   # weight on 1 - availability_avg
+  beta_reloc_km: 0.5            # weight on relocation_km_total
+  gamma_energy_cost: 10.0       # weight on charging_cost_eur_total
 seed: 42
