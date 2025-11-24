@@ -281,4 +281,21 @@ ops:
   thresholds:
     low: 0.2
     high: 0.8
+
+  planners:
+    relocation:
+      name: greedy
+      params:
+        low: 0.25
+        high: 0.8
+        target: 0.6
+        hysteresis: 0.03
+        max_moves: 50
+
+    charging:
+      name: greedy
+      params:
+        threshold_quantile: 0.5
+
+
 seed: 42
