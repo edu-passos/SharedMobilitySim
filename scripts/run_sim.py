@@ -10,6 +10,30 @@ from sim.weather_mc import make_default_weather_mc as weather_mc
 from sim.demand import effective_lambda
 from sim.events import events
 
+#To print to cvs
+import os
+import csv
+from datetime import datetime
+
+#Writes data into a csv file. 
+#Creates folder if it doesnt exist.
+#Creates file if the name doesn't exist.
+#Name of file is based on current datetime.
+def store_results(data_to_store):
+    results_folder = "results"
+    os.makedirs(results_folder, exist_ok=True)
+    ts = datetime.now().strftime("%d_%H%M%S")
+    csv_file = os.path.join(results_folder, f"result_{ts}.csv")
+    write_header = not os.path.exists(csv_file)
+
+    print("\n Results have been stored. Check 'results' folder.", flush=True)
+
+    with open(csv_file, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=data_to_store.keys())
+        if write_header:
+            writer.writeheader()
+        writer.writerow(data_to_store)
+
 
 def main(cfg_path):
     with open(cfg_path, "r", encoding="utf-8") as f:
@@ -124,31 +148,29 @@ def main(cfg_path):
     reloc_ops_total = int(sum(r.get("reloc_ops", 0) for r in sim.logs))
     charge_util_avg = float(np.mean([r.get("charge_utilization", 0.0) for r in sim.logs]))
 
-    print("\n", flush=True)
-    print(
-        {
-            "unmet_total": unmet_total,
-            "availability_avg": round(avail_avg, 3),
-            "queue_total_max": max_queue,
-            "queue_total_avg": round(avg_queue, 2),
-            "relocation_km_total": round(reloc_km_tot, 2),
-            "reloc_ops_total": reloc_ops_total,
-            "charging_energy_kwh_total": round(energy_kwh, 2),
-            "charging_cost_eur_total": round(energy_eur, 2),
-            "charge_utilization_avg": round(charge_util_avg, 3),
-            "overflow_rerouted_total": overflow_rerouted_total,
-            "overflow_dropped_total": overflow_dropped_total,  # 0 if not logged
-            "overflow_extra_min_total": round(overflow_extra_min_tot, 1),
-            "soc_mean_avg": round(soc_mean_avg, 3),
-            "full_ratio_avg": round(full_ratio_avg, 3),
-            "empty_ratio_avg": round(empty_ratio_avg, 3),
-            "stock_std_avg": round(stock_std_avg, 3),
-            "ticks": steps,
-            "dt_min": simcfg.dt_min,
-            "stations": N,
-        },
-        flush=True,
-    )
+    data_to_store={
+        "unmet_total": unmet_total,
+        "availability_avg": round(avail_avg, 3),
+        "queue_total_max": max_queue,
+        "queue_total_avg": round(avg_queue, 2),
+        "relocation_km_total": round(reloc_km_tot, 2),
+        "reloc_ops_total": reloc_ops_total,
+        "charging_energy_kwh_total": round(energy_kwh, 2),
+        "charging_cost_eur_total": round(energy_eur, 2),
+        "charge_utilization_avg": round(charge_util_avg, 3),
+        "overflow_rerouted_total": overflow_rerouted_total,
+        "overflow_dropped_total": overflow_dropped_total,  # 0 if not logged
+        "overflow_extra_min_total": round(overflow_extra_min_tot, 1),
+        "soc_mean_avg": round(soc_mean_avg, 3),
+        "full_ratio_avg": round(full_ratio_avg, 3),
+        "empty_ratio_avg": round(empty_ratio_avg, 3),
+        "stock_std_avg": round(stock_std_avg, 3),
+        "ticks": steps,
+        "dt_min": simcfg.dt_min,
+        "stations": N,
+    }
+
+    store_results(data_to_store)
 
 
 if __name__ == "__main__":
