@@ -7,8 +7,7 @@ from envs.porto_env import PortoMicromobilityEnv, ScoreWeights
 
 
 class DummyAgent:
-    """
-    Template agent.
+    """Template agent.
 
     Replace the logic in `act()` with your model:
       - can be random
@@ -22,10 +21,10 @@ class DummyAgent:
     def act(self, obs) -> np.ndarray:
         # TODO: replace with your policy
         # For now: random action in [0,1]^4
-        return np.random.rand(self.action_dim)
+        return np.random.Generator(self.action_dim)
 
 
-def compute_episode_kpis(env: PortoMicromobilityEnv):
+def compute_episode_kpis(env: PortoMicromobilityEnv) -> dict[str, float]:
     """Aggregate KPIs from env.sim.logs for one episode."""
     logs = env.sim.logs
     if not logs:
@@ -88,7 +87,7 @@ def compute_episode_kpis(env: PortoMicromobilityEnv):
     }
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     # adjust default path depending on where you run from
     parser.add_argument("--config", default="configs/network_porto10.yaml")

@@ -1,18 +1,19 @@
 import argparse
 import sys
+from pathlib import Path
 
 import numpy as np
 import yaml
 
 from control.baselines import plan_charging_greedy, plan_greedy
 from sim.core import Sim, SimConfig
-from sim.weather_mc import make_default_weather_mc as weather_mc
 from sim.demand import effective_lambda
 from sim.events import events
+from sim.weather_mc import make_default_weather_mc as weather_mc
 
 
-def main(cfg_path):
-    with open(cfg_path, "r", encoding="utf-8") as f:
+def main(cfg_path: str) -> None:
+    with Path(cfg_path).open("r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
     N = int(cfg["network"]["n_stations"])

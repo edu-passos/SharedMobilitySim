@@ -2,23 +2,24 @@ import numpy as np
 
 
 def plan_greedy(
-    x,
-    C,
-    travel_min,
+    x: np.ndarray,
+    C: np.ndarray,
+    travel_min: np.ndarray,
     *,
-    low=0.2,
-    high=0.8,
-    target=0.6,
-    hysteresis=0.03,
-    max_moves=50,
-    distance_penalty=0.0,
-):
-    """
-    Move vehicles from surplus to deficit stations.
-    - low/high: trigger thresholds
-    - target: preferred fill ratio after moves
-    - hysteresis: avoids ping-pong (donor must be > high+hyst, receiver < low-hyst)
-    - distance_penalty: prioritize nearer donors (add penalty * distance to the gap)
+    low: float = 0.2,
+    high: float = 0.8,
+    target: float = 0.6,
+    hysteresis: float = 0.03,
+    max_moves: int = 50,
+    distance_penalty: float = 0.0,
+) -> list[tuple[int, int, int]]:
+    """Move vehicles from surplus to deficit stations.
+
+    Args:
+        low/high: trigger thresholds
+        target: preferred fill ratio after moves
+        hysteresis: avoids ping-pong (donor must be > high+hyst, receiver < low-hyst)
+        distance_penalty: prioritize nearer donors (add penalty * distance to the gap)
     """
     x = np.asarray(x, dtype=float).copy()
     C = np.asarray(C, dtype=float)
@@ -54,9 +55,17 @@ def plan_greedy(
 
 
 # simple strategic charging (prioritize high demand & low SoC)
-def plan_charging_greedy(x, s, chargers, lam_t, *, threshold_quantile=0.5, min_score=None):
-    """
-    Return per-station number of vehicles to plug this tick.
+def plan_charging_greedy(
+    x: np.ndarray,
+    s: np.ndarray,
+    chargers: np.ndarray,
+    lam_t: np.ndarray,
+    *,
+    threshold_quantile: float = 0.5,
+    min_score: float | None = None,
+) -> np.ndarray:
+    """Return per-station number of vehicles to plug this tick.
+
     Prioritizes stations with high expected demand and low SoC:
         score[i] = lam_t[i] * (1 - s[i])
     Only stations with score above a threshold are plugged.
@@ -70,10 +79,7 @@ def plan_charging_greedy(x, s, chargers, lam_t, *, threshold_quantile=0.5, min_s
     score = lam_t * (1.0 - s)  # higher = more urgent
 
     # choose a threshold—either absolute (min_score) or quantile
-    if min_score is not None:
-        thr = float(min_score)
-    else:
-        thr = float(np.quantile(score, threshold_quantile))  # e.g., top half
+    thr = float(min_score) if min_score is not None else float(np.quantile(score, threshold_quantile))  # e.g., top half
 
     plan = np.zeros_like(x, dtype=int)
     hot = np.where(score >= thr)[0]
@@ -83,6 +89,6 @@ def plan_charging_greedy(x, s, chargers, lam_t, *, threshold_quantile=0.5, min_s
     return plan
 
 
-def plan_nightly_uniform(x, C, target=0.6):
+def plan_nightly_uniform(x: np.ndarray, C: np.ndarray, target: float = 0.6) -> list[tuple[int, int, int]]:
     # move from >target*C to <target*C once per night (call from main when hour==2)
     return []

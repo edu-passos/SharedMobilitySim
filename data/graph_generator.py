@@ -9,7 +9,8 @@ import pandas as pd
 import yaml
 
 
-def haversine_km(lat1, lon1, lat2, lon2):
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Compute haversine distance between two lat/lon points in kilometers."""
     R = 6371.0088
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
@@ -130,7 +131,7 @@ def main():
         "seed": 42,
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    with open(args.out, "w", encoding="utf-8") as f:
+    with args.out.open("w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, sort_keys=False)
 
 

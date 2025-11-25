@@ -7,8 +7,7 @@ from envs.porto_env import PortoMicromobilityEnv, ScoreWeights
 
 
 class HeuristicAgent:
-    """
-    Heuristic agent for PortoMicromobilityEnv.
+    """Heuristic agent for PortoMicromobilityEnv.
 
     It looks at:
       - fill_ratio (how full stations are)
@@ -18,10 +17,11 @@ class HeuristicAgent:
     and outputs 4 numbers in [0,1] that control relocation & charging thresholds.
     """
 
-    def __init__(self, action_dim: int = 4):
+    def __init__(self, action_dim: int = 4) -> None:
         self.action_dim = action_dim
 
-    def act(self, obs) -> np.ndarray:
+    def act(self, obs: dict[str, np.ndarray]) -> np.ndarray:
+        """Compute action from observation."""
         fill = obs["fill_ratio"]  # (N,)
         soc = obs["soc"]  # (N,)
         waiting = obs["waiting"]  # (N,)
@@ -94,7 +94,7 @@ class HeuristicAgent:
         return np.array([a0, a1, a2, a3], dtype=float)
 
 
-def compute_episode_kpis(env: PortoMicromobilityEnv):
+def compute_episode_kpis(env: PortoMicromobilityEnv) -> dict[str, float]:
     """Aggregate KPIs from env.sim.logs for one episode."""
     logs = env.sim.logs
     if not logs:

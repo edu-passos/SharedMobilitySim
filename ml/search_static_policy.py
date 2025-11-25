@@ -1,5 +1,6 @@
 import argparse
 import json
+from pathlib import Path
 
 import numpy as np
 import yaml
@@ -8,21 +9,22 @@ from envs.porto_env import PortoMicromobilityEnv, ScoreWeights
 
 
 class StaticPolicyAgent:
-    """
-    Agent that always uses the same 4-dim action vector a in [0,1]^4.
-    This is our "static policy"; black-box search will choose a.
+    """Agent that always uses the same 4-dim action vector a in [0,1]^4.
+
+    This is our "static policy";
+    Black-box search will choose a.
     """
 
-    def __init__(self, action: np.ndarray):
+    def __init__(self, action: np.ndarray) -> None:
         assert action.shape == (4,)
         self.action = action.astype(float)
 
-    def act(self, obs):
+    def act(self, obs: dict[str, np.ndarray]) -> np.ndarray:
         # obs is ignored; this is a pure static policy
         return self.action
 
 
-def compute_episode_kpis(env: PortoMicromobilityEnv):
+def compute_episode_kpis(env: PortoMicromobilityEnv) -> dict[str, float]:
     """Aggregate KPIs from env.sim.logs for one episode."""
     logs = env.sim.logs
     if not logs:
@@ -85,7 +87,7 @@ def compute_episode_kpis(env: PortoMicromobilityEnv):
 
 def load_score_weights(cfg_path: str) -> ScoreWeights:
     """Read weights from YAML `score:` section, with defaults if missing."""
-    with open(cfg_path, "r", encoding="utf-8") as f:
+    with Path(cfg_path).open("r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
     score_cfg = cfg.get("score", {})
@@ -106,10 +108,11 @@ def evaluate_static_action(
     episode_hours: int,
     episodes: int,
     base_seed: int,
-):
-    """
-    Run `episodes` episodes with the same static action, return
-    average KPIs and average J_run.
+) -> dict[str, object]:
+    """Run `episodes` episodes with the same static action.
+
+    Returns:
+        Average KPIs and average J_run.
     """
     all_kpis = []
     total_rewards = []
@@ -153,7 +156,7 @@ def evaluate_static_action(
     }
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/network_porto10.yaml")
     parser.add_argument("--hours", type=int, default=24, help="episode length in hours")

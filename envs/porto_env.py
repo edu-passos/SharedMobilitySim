@@ -1,5 +1,4 @@
-"""
-PortoMicromobilityEnv: simple API for agents
+"""PortoMicromobilityEnv: simple API for agents.
 
 You ONLY need these two methods:
 
@@ -24,32 +23,31 @@ If you're doing RL, you:
     - update your model using (obs, action, reward, next_obs, done)
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
+from typing import Any
 
 import numpy as np
 import yaml
 
+from control.policies import REGISTRY as POLICY_REGISTRY
 from sim.core import Sim, SimConfig
-from sim.weather_mc import make_default_weather_mc as weather_mc
 from sim.demand import effective_lambda
 from sim.events import events
-from control.policies import REGISTRY as POLICY_REGISTRY
+from sim.weather_mc import make_default_weather_mc as weather_mc
 
 
 @dataclass
 class ScoreWeights:
+    """Weights for per-tick cost components in reward calculation."""
+
     alpha_unavailability: float = 100.0  # weight on (1 - availability)
     beta_reloc_km: float = 0.5  # weight on total relocation km (per tick)
     gamma_energy_cost: float = 10.0  # weight on charging cost € (per tick)
 
 
 class PortoMicromobilityEnv:
-    """
-    Lightweight RL-style wrapper around Sim + planners.
+    """Lightweight RL-style wrapper around Sim + planners.
 
     - Action: 4-dim vector in [0,1]^4 that controls relocation + charging knobs.
     - Observation: dict with per-station state + time-of-day features.
@@ -60,14 +58,14 @@ class PortoMicromobilityEnv:
         self,
         cfg_path: str | Path,
         *,
-        score_weights: Optional[ScoreWeights] = None,
-        episode_hours: Optional[int] = None,
+        score_weights: ScoreWeights | None = None,
+        episode_hours: int | None = None,
         seed: int = 42,
-    ):
+    ) -> None:
         self.cfg_path = Path(cfg_path)
         self.seed = int(seed)
 
-        with open(self.cfg_path, "r", encoding="utf-8") as f:
+        with self.cfg_path.open(encoding="utf-8") as f:
             self._cfg = yaml.safe_load(f)
 
         # Time horizon (in ticks)
@@ -106,10 +104,8 @@ class PortoMicromobilityEnv:
 
     # -------------------- public API -------------------- #
 
-    def reset(self, *, seed: Optional[int] = None) -> Dict[str, np.ndarray]:
-        """
-        Reset the simulation to t=0 and return initial observation.
-        """
+    def reset(self, *, seed: int | None = None) -> dict[str, np.ndarray]:
+        """Reset the simulation to t=0 and return initial observation."""
         if seed is None:
             seed = self.seed
         self.rng = np.random.default_rng(seed)
@@ -151,13 +147,19 @@ class PortoMicromobilityEnv:
         self.step_idx = 0
         return self._build_obs()
 
-    def step(self, action: np.ndarray) -> Tuple[Dict[str, np.ndarray], float, bool, Dict[str, Any]]:
-        """
-        Apply agent action, advance sim by one tick, and return:
-          obs, reward, done, info
+    def step(self, action: np.ndarray) -> tuple[dict[str, np.ndarray], float, bool, dict[str, Any]]:
+        """Apply agent action, advance sim by one tick.
+
+        Returns:
+            Tuple of (obs, reward, done, info)
+            - obs: observation dict
+            - reward: float
+            - done: bool, whether episode is over
+            - info: dict with extra diagnostics
         """
         assert self.sim is not None, "Call reset() before step()."
-        assert self.base_lambda is not None and self.P is not None
+        assert self.base_lambda is not None
+        assert self.P is not None
 
         # 1) Map action ∈ R^4 (or [0,1]^4) to planner params
         reloc_params, charge_params = self._action_to_params(action)
@@ -215,9 +217,9 @@ class PortoMicromobilityEnv:
 
     # -------------------- internals -------------------- #
 
-    def _action_to_params(self, a: np.ndarray) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """
-        Map a 4-dim continuous action a ∈ R^4 to planner parameters.
+    def _action_to_params(self, a: np.ndarray) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Map a 4-dim continuous action a ∈ R^4 to planner parameters.
+
         We clip to [0,1] and then scale into meaningful ranges.
         """
         a = np.asarray(a, dtype=float)
@@ -251,12 +253,12 @@ class PortoMicromobilityEnv:
 
         return reloc_params, charge_params
 
-    def _compute_reward(self, log: Dict[str, Any]) -> float:
-        """
-        Per-tick reward: negative instantaneous cost
-          J_t = α (1 - availability) + β * reloc_km + γ * charge_cost_eur
-          reward_t = -J_t
-        """
+    def _compute_reward(self, log: dict[str, Any]) -> float:
+        """Per-tick reward: negative instantaneous cost.
+
+        J_t = α (1 - availability) + β * reloc_km + γ * charge_cost_eur
+        reward_t = -J_t
+        """  # noqa: RUF002
         alpha = self.score_weights.alpha_unavailability
         beta = self.score_weights.beta_reloc_km
         gamma = self.score_weights.gamma_energy_cost
@@ -268,9 +270,9 @@ class PortoMicromobilityEnv:
         J_t = alpha * (1.0 - availability) + beta * reloc_km + gamma * charge_cost
         return -J_t
 
-    def _build_obs(self) -> Dict[str, np.ndarray]:
-        """
-        Build observation dict from current sim state.
+    def _build_obs(self) -> dict[str, np.ndarray]:
+        """Build observation dict from current sim state.
+
         Simple version: per-station x, SoC, waiting queue + time-of-day encoding.
         """
         assert self.sim is not None

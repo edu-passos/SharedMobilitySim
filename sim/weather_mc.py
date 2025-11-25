@@ -1,21 +1,26 @@
-from __future__ import annotations
+from dataclasses import dataclass, field
+
 import numpy as np
-from dataclasses import dataclass
 
 
 @dataclass
 class WeatherMC:
+    """A discrete-time Markov chain modeling weather states affecting demand."""
+
     states: tuple[str, ...]  # e.g. ("clear","cloudy","rain","storm")
     P: np.ndarray  # (S,S) row-stochastic transition matrix
     factors: dict[str, float]  # multiplicative demand factor per state
     state_idx: int  # current index in states
     update_every_ticks: int = 12  # e.g. if dt=5 min, 12 ticks = 1 hour
     _tick_counter: int = 0
-    rng: np.random.Generator = np.random.default_rng(42)
+    rng: np.random.Generator = field(default_factory=lambda: np.random.default_rng(42))
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        """Validate inputs."""
         S = len(self.states)
-        assert self.P.shape == (S, S), "P must be SxS"
+        if self.P.shape != (S, S):
+            raise ValueError(f"P must be shape ({S},{S})")
+
         row_sum = self.P.sum(axis=1)
         if not np.allclose(row_sum, 1.0, atol=1e-8):
             raise ValueError("Each row of P must sum to 1")
@@ -24,10 +29,12 @@ class WeatherMC:
 
     @property
     def state(self) -> str:
+        """Return current weather state."""
         return self.states[self.state_idx]
 
     @property
     def factor(self) -> float:
+        """Return current demand factor."""
         return float(self.factors[self.state])
 
     def step(self) -> str:
@@ -39,8 +46,8 @@ class WeatherMC:
 
 
 def make_default_weather_mc(dt_min: int, seed: int = 42) -> WeatherMC:
-    """
-    Default 4-state chain calibrated for urban micromobility.
+    """Return default 4-state chain calibrated for urban micromobility.
+
     Update cadence = 60 minutes by default.
     """
     states = ("clear", "cloudy", "rain", "storm")
@@ -55,7 +62,7 @@ def make_default_weather_mc(dt_min: int, seed: int = 42) -> WeatherMC:
         dtype=float,
     )
     factors = {"clear": 1.00, "cloudy": 0.90, "rain": 0.60, "storm": 0.45}
-    ticks_per_hour = max(int(round(60 / dt_min)), 1)
+    ticks_per_hour = max(round(60 / dt_min), 1)
     return WeatherMC(
         states=states,
         P=P,

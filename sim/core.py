@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 from heapq import heappop, heappush
+
 import numpy as np
 
-Move = Tuple[int, int, int]  # (i -> j, k units)
+Move = tuple[int, int, int]  # (i -> j, k units)
 
 
 @dataclass
@@ -22,13 +22,13 @@ class SimConfig:
 
 
 class Sim:
-    """
-    Discrete-time simulator for station-based e-scooters/e-bikes.
+    """Discrete-time simulator for station-based e-scooters/e-bikes.
+
     State per station i: stock x[i], average SoC s[i], and SoC mass m[i] = x[i]*s[i].
     Trips/relocations conserve SoC mass; charging adds mass to plugged units.
     """
 
-    def __init__(self, cfg: SimConfig, rng: np.random.Generator):
+    def __init__(self, cfg: SimConfig, rng: np.random.Generator) -> None:
         self.cfg = cfg
         self.rng = rng
 
@@ -43,14 +43,12 @@ class Sim:
         self.x = np.minimum(cfg.capacity // 3, cfg.capacity).astype(int)  # initial stock ~1/3 full
         self.s = rng.uniform(0.5, 0.9, size=N)  # avg SoC in [50%, 90%]
         self.m = self.x.astype(float) * self.s  # SoC "mass" (conserved across moves)
-        self._trip_heap: List[Tuple[int, int, float, float]] = []  # (t_arrive, dest_j, soc_use, s_depart)
+        self._trip_heap: list[tuple[int, int, float, float]] = []  # (t_arrive, dest_j, soc_use, s_depart)
 
         # Accumulators / logs
-        self.logs: List[dict] = []
+        self.logs: list[dict] = []
         N = cfg.capacity.shape[0]
         self.waiting = np.zeros(N, dtype=int)
-
-    # --------------------------------------------------
 
     def step(
         self,
@@ -58,9 +56,9 @@ class Sim:
         P_t: np.ndarray,
         *,
         weather_fac: float = 1.0,
-        event_fac: Optional[np.ndarray] = None,
-        reloc_plan: Optional[List[Move]] = None,
-        charging_plan: Optional[np.ndarray] = None,
+        event_fac: np.ndarray | None = None,
+        reloc_plan: list[Move] | None = None,
+        charging_plan: np.ndarray | None = None,
     ) -> None:
         """Advance simulation by one tick."""
         self._validate_inputs(lam_t, P_t, event_fac, charging_plan)
@@ -83,7 +81,7 @@ class Sim:
 
         demand_total = int(A.sum())
         served_total = int(can_serve.sum())
-        # unmet requests *for this tick* (new arrivals that didn’t start)
+        # unmet requests *for this tick* (new arrivals that didn't start)
         unmet_tick = int((A - can_serve).sum())
         # queue length after service
         queue_total = int(self.waiting.sum())
@@ -183,7 +181,7 @@ class Sim:
                 "served_total": served_total,
                 "unmet": unmet_tick,
                 "queue_total": queue_total,
-                #
+                # TODO: some description for the metrics below
                 "availability": float((self.x > 0).mean()),
                 "reloc_km": reloc_km,
                 "plugged": int(plan.sum()),
@@ -209,7 +207,7 @@ class Sim:
         self.s[~xnz] = 0.0
         self.s[xnz] = self.m[xnz] / self.x[xnz]
 
-    def _resolve_charging_plan(self, charging_plan: Optional[np.ndarray]) -> np.ndarray:
+    def _resolve_charging_plan(self, charging_plan: np.ndarray | None) -> np.ndarray:
         """Clip to [0, chargers, x]. If None, default: plug as many as possible."""
         if charging_plan is None:
             return np.minimum(self.cfg.chargers, self.x).astype(int)
@@ -217,14 +215,15 @@ class Sim:
         plan = np.clip(plan, 0, None)
         plan = np.minimum(plan, self.cfg.chargers)
         plan = np.minimum(plan, self.x)
-        return plan
+
+        return plan  # noqa: RET504
 
     def _validate_inputs(
         self,
         lam_t: np.ndarray,
         P_t: np.ndarray,
-        event_fac: Optional[np.ndarray],
-        charging_plan: Optional[np.ndarray],
+        event_fac: np.ndarray | None,
+        charging_plan: np.ndarray | None,
     ) -> None:
         N = self.x.shape[0]
         assert lam_t.shape == (N,), f"lam_t must be shape (N,), got {lam_t.shape}"
