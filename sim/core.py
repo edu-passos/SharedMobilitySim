@@ -3,20 +3,23 @@ from typing import List, Optional, Tuple
 from heapq import heappop, heappush
 import numpy as np
 
-Move = Tuple[int, int, int]   # (i -> j, k units)
+Move = Tuple[int, int, int]  # (i -> j, k units)
+
 
 @dataclass
 class SimConfig:
     """Minimal config for a docked shared-mobility sim."""
-    dt_min: int                         # minutes per tick
-    horizon_h: int                      # total hours to simulate
-    capacity: np.ndarray                # (N,) max vehicles per station
-    travel_min: np.ndarray              # (N,N) travel time matrix (minutes)
-    charge_rate: np.ndarray             # (N,) SoC/hour when plugged (e.g. 0.25 => +25%/h)
-    cost_km: np.ndarray                 # (N,N) relocation distance or cost
-    chargers: np.ndarray                # (N,) plugs per station
-    battery_kwh: float                  # kWh per vehicle @ 100% SoC
-    energy_cost_per_kwh: float          # €/kWh
+
+    dt_min: int  # minutes per tick
+    horizon_h: int  # total hours to simulate
+    capacity: np.ndarray  # (N,) max vehicles per station
+    travel_min: np.ndarray  # (N,N) travel time matrix (minutes)
+    charge_rate: np.ndarray  # (N,) SoC/hour when plugged (e.g. 0.25 => +25%/h)
+    cost_km: np.ndarray  # (N,N) relocation distance or cost
+    chargers: np.ndarray  # (N,) plugs per station
+    battery_kwh: float  # kWh per vehicle @ 100% SoC
+    energy_cost_per_kwh: float  # €/kWh
+
 
 class Sim:
     """
@@ -32,16 +35,14 @@ class Sim:
         N = cfg.capacity.shape[0]
         assert cfg.travel_min.shape == (N, N), "travel_min must be NxN"
         assert cfg.cost_km.shape == (N, N), "cost_km must be NxN"
-        for arr, name in ((cfg.capacity, "capacity"),
-                          (cfg.charge_rate, "charge_rate"),
-                          (cfg.chargers, "chargers")):
+        for arr, name in ((cfg.capacity, "capacity"), (cfg.charge_rate, "charge_rate"), (cfg.chargers, "chargers")):
             assert arr.shape == (N,), f"{name} must be shape (N,)"
 
         # State
         self.t = 0  # minutes since start
         self.x = np.minimum(cfg.capacity // 3, cfg.capacity).astype(int)  # initial stock ~1/3 full
-        self.s = rng.uniform(0.5, 0.9, size=N)                             # avg SoC in [50%, 90%]
-        self.m = self.x.astype(float) * self.s                             # SoC "mass" (conserved across moves)
+        self.s = rng.uniform(0.5, 0.9, size=N)  # avg SoC in [50%, 90%]
+        self.m = self.x.astype(float) * self.s  # SoC "mass" (conserved across moves)
         self._trip_heap: List[Tuple[int, int, float, float]] = []  # (t_arrive, dest_j, soc_use, s_depart)
 
         # Accumulators / logs
@@ -71,7 +72,7 @@ class Sim:
         lam_eff = lam_t * weather_fac
         if event_fac is not None:
             lam_eff = lam_eff * event_fac
-        A = self.rng.poisson(lam_eff)                 # arrivals per station
+        A = self.rng.poisson(lam_eff)  # arrivals per station
         # add to waiting queue
         self.waiting += A
 
@@ -174,29 +175,30 @@ class Sim:
         self.m = np.clip(self.m, 0.0, self.x.astype(float))
         self._refresh_avg_soc()
 
-        self.logs.append({
-            "t_min": self.t,
-
-            # demand/service
-            "demand_total": demand_total,
-            "served_total": served_total,
-            "unmet": unmet_tick,
-            "queue_total": queue_total,
-
-            "availability": float((self.x > 0).mean()),
-            "reloc_km": reloc_km,
-            "plugged": int(plan.sum()),
-            "charge_energy_kwh": energy_kwh,
-            "charge_cost_eur": charge_cost,
-            "overflow_rerouted": int(overflow_rerouted),
-            "overflow_extra_min": float(overflow_extra_min),
-            "soc_mean": float(np.mean(self.s)),
-            "full_ratio": float(np.mean(self.x == self.cfg.capacity)),
-            "empty_ratio": float(np.mean(self.x == 0)),
-            "stock_std": float(np.std(self.x)),
-            "reloc_ops": int(sum(k for *_ij, k in (reloc_plan or []))),
-            "charge_utilization": float(charge_utilization),
-        })
+        self.logs.append(
+            {
+                "t_min": self.t,
+                # demand/service
+                "demand_total": demand_total,
+                "served_total": served_total,
+                "unmet": unmet_tick,
+                "queue_total": queue_total,
+                #
+                "availability": float((self.x > 0).mean()),
+                "reloc_km": reloc_km,
+                "plugged": int(plan.sum()),
+                "charge_energy_kwh": energy_kwh,
+                "charge_cost_eur": charge_cost,
+                "overflow_rerouted": int(overflow_rerouted),
+                "overflow_extra_min": float(overflow_extra_min),
+                "soc_mean": float(np.mean(self.s)),
+                "full_ratio": float(np.mean(self.x == self.cfg.capacity)),
+                "empty_ratio": float(np.mean(self.x == 0)),
+                "stock_std": float(np.std(self.x)),
+                "reloc_ops": int(sum(k for *_ij, k in (reloc_plan or []))),
+                "charge_utilization": float(charge_utilization),
+            }
+        )
         self.t = t_next
 
     # ------------------------- helpers -------------------------

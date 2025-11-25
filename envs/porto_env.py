@@ -23,6 +23,7 @@ If you're doing RL, you:
     - choose actions based on obs
     - update your model using (obs, action, reward, next_obs, done)
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -41,9 +42,9 @@ from control.policies import REGISTRY as POLICY_REGISTRY
 
 @dataclass
 class ScoreWeights:
-    alpha_unavailability: float = 100.0   # weight on (1 - availability)
-    beta_reloc_km: float = 0.5            # weight on total relocation km (per tick)
-    gamma_energy_cost: float = 10.0       # weight on charging cost € (per tick)
+    alpha_unavailability: float = 100.0  # weight on (1 - availability)
+    beta_reloc_km: float = 0.5  # weight on total relocation km (per tick)
+    gamma_energy_cost: float = 10.0  # weight on charging cost € (per tick)
 
 
 class PortoMicromobilityEnv:
@@ -83,7 +84,7 @@ class PortoMicromobilityEnv:
         planners_cfg = ops_cfg.get("planners", {})
 
         reloc_cfg = planners_cfg.get("relocation", {"name": "greedy", "params": {}})
-        charge_cfg = planners_cfg.get("charging",   {"name": "greedy", "params": {}})
+        charge_cfg = planners_cfg.get("charging", {"name": "greedy", "params": {}})
 
         self.reloc_name = reloc_cfg.get("name", "greedy")
         self.base_reloc_params = reloc_cfg.get("params", {}) or {}
@@ -122,9 +123,7 @@ class PortoMicromobilityEnv:
 
         energy = cfg.get("energy", {})
         chargers = np.array(energy.get("chargers_per_station", [2] * N), dtype=int)
-        charge_rate = np.array(
-            energy.get("charge_rate_soc_per_hour", [0.25] * N), dtype=float
-        )
+        charge_rate = np.array(energy.get("charge_rate_soc_per_hour", [0.25] * N), dtype=float)
         battery_kwh = float(energy.get("battery_kwh_per_vehicle", 0.5))
         energy_cost = float(energy.get("energy_cost_per_kwh_eur", 0.20))
 
@@ -169,9 +168,7 @@ class PortoMicromobilityEnv:
         w_fac = self.W.factor
         ev_vec = self.events_matrix[self.step_idx]
 
-        lam_t = effective_lambda(self.base_lambda, hour,
-                                 weather_fac=w_fac,
-                                 event_fac_vec=ev_vec)
+        lam_t = effective_lambda(self.base_lambda, hour, weather_fac=w_fac, event_fac_vec=ev_vec)
 
         # 3) Compute plans using current state + params
         reloc = self.reloc_planner(
@@ -230,10 +227,10 @@ class PortoMicromobilityEnv:
             raise ValueError(f"Action must have at least 4 elements, got {a.size}.")
         a = np.clip(a, 0.0, 1.0)
 
-        low = 0.1 + 0.2 * a[0]      # [0.1, 0.3]
-        high = 0.6 + 0.3 * a[1]     # [0.6, 0.9]
-        target = 0.4 + 0.4 * a[2]   # [0.4, 0.8]
-        q_thresh = 0.2 + 0.6 * a[3] # [0.2, 0.8]
+        low = 0.1 + 0.2 * a[0]  # [0.1, 0.3]
+        high = 0.6 + 0.3 * a[1]  # [0.6, 0.9]
+        target = 0.4 + 0.4 * a[2]  # [0.4, 0.8]
+        q_thresh = 0.2 + 0.6 * a[3]  # [0.2, 0.8]
 
         reloc_params = {
             **self.base_reloc_params,
@@ -268,11 +265,7 @@ class PortoMicromobilityEnv:
         reloc_km = float(log.get("reloc_km", 0.0))
         charge_cost = float(log.get("charge_cost_eur", 0.0))
 
-        J_t = (
-            alpha * (1.0 - availability) +
-            beta * reloc_km +
-            gamma * charge_cost
-        )
+        J_t = alpha * (1.0 - availability) + beta * reloc_km + gamma * charge_cost
         return -J_t
 
     def _build_obs(self) -> Dict[str, np.ndarray]:
@@ -293,8 +286,8 @@ class PortoMicromobilityEnv:
         waiting = getattr(self.sim, "waiting", np.zeros_like(self.sim.x))
 
         return {
-            "fill_ratio": fill.copy(),      # shape (N,)
-            "soc": self.sim.s.copy(),       # shape (N,)
+            "fill_ratio": fill.copy(),  # shape (N,)
+            "soc": self.sim.s.copy(),  # shape (N,)
             "waiting": waiting.astype(float).copy(),  # shape (N,)
-            "time_of_day": tod,             # shape (2,)
+            "time_of_day": tod,  # shape (2,)
         }

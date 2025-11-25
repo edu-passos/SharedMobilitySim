@@ -4,6 +4,7 @@ import importlib
 
 PlannerFn = Callable[..., Any]
 
+
 class PlannerRegistry:
     def __init__(self):
         self._reloc: Dict[str, PlannerFn] = {}
@@ -27,19 +28,26 @@ class PlannerRegistry:
             raise KeyError(f"Unknown charging planner '{name}'.")
         return self._charge[key]
 
+
 REGISTRY = PlannerRegistry()
+
 
 # ---------- Built-in adapters (wrap your baseline functions) ----------
 def _reloc_greedy_adapter(x, C, travel_min, *, params: Dict[str, Any]) -> Any:
     from control.baselines import plan_greedy
+
     return plan_greedy(x, C, travel_min, **params)
+
 
 def _charge_greedy_adapter(x, s, chargers, lam_t, *, params: Dict[str, Any]) -> Any:
     from control.baselines import plan_charging_greedy
+
     return plan_charging_greedy(x, s, chargers, lam_t, **params)
+
 
 REGISTRY.register_relocation("greedy", _reloc_greedy_adapter)
 REGISTRY.register_charging("greedy", _charge_greedy_adapter)
+
 
 # ---------- Optional: ML adapters ----------
 def _load_dotted(dotted: str):
@@ -54,6 +62,7 @@ def _load_dotted(dotted: str):
         mod_name, attr = dotted, None
     mod = importlib.import_module(mod_name)
     return getattr(mod, attr) if attr else mod
+
 
 def _reloc_ml_adapter(x, C, travel_min, *, params: Dict[str, Any]) -> Any:
     """
@@ -71,6 +80,7 @@ def _reloc_ml_adapter(x, C, travel_min, *, params: Dict[str, Any]) -> Any:
     # fallback: assume it’s a function(x,C,travel_min,**kwargs)
     return obj(x, C, travel_min, **kwargs)
 
+
 def _charge_ml_adapter(x, s, chargers, lam_t, *, params: Dict[str, Any]) -> Any:
     """
     params example:
@@ -85,6 +95,7 @@ def _charge_ml_adapter(x, s, chargers, lam_t, *, params: Dict[str, Any]) -> Any:
     if hasattr(planner, "plan"):
         return planner.plan(x, s, chargers, lam_t)
     return obj(x, s, chargers, lam_t, **kwargs)
+
 
 REGISTRY.register_relocation("ml", _reloc_ml_adapter)
 REGISTRY.register_charging("ml", _charge_ml_adapter)

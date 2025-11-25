@@ -2,13 +2,14 @@ from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass
 
+
 @dataclass
 class WeatherMC:
-    states: tuple[str, ...]                 # e.g. ("clear","cloudy","rain","storm")
-    P: np.ndarray                           # (S,S) row-stochastic transition matrix
-    factors: dict[str, float]               # multiplicative demand factor per state
-    state_idx: int                          # current index in states
-    update_every_ticks: int = 12            # e.g. if dt=5 min, 12 ticks = 1 hour
+    states: tuple[str, ...]  # e.g. ("clear","cloudy","rain","storm")
+    P: np.ndarray  # (S,S) row-stochastic transition matrix
+    factors: dict[str, float]  # multiplicative demand factor per state
+    state_idx: int  # current index in states
+    update_every_ticks: int = 12  # e.g. if dt=5 min, 12 ticks = 1 hour
     _tick_counter: int = 0
     rng: np.random.Generator = np.random.default_rng(42)
 
@@ -36,6 +37,7 @@ class WeatherMC:
             self.state_idx = int(self.rng.choice(len(self.states), p=self.P[self.state_idx]))
         return self.state
 
+
 def make_default_weather_mc(dt_min: int, seed: int = 42) -> WeatherMC:
     """
     Default 4-state chain calibrated for urban micromobility.
@@ -43,19 +45,22 @@ def make_default_weather_mc(dt_min: int, seed: int = 42) -> WeatherMC:
     """
     states = ("clear", "cloudy", "rain", "storm")
     # Row-stochastic transition matrix (clear/cloudy are sticky; storms are brief)
-    P = np.array([
-        [0.86, 0.11, 0.03, 0.00],  # clear -> ...
-        [0.10, 0.80, 0.09, 0.01],  # cloudy -> ...
-        [0.05, 0.25, 0.65, 0.05],  # rain   -> ...
-        [0.02, 0.18, 0.45, 0.35],  # storm  -> ...
-    ], dtype=float)
+    P = np.array(
+        [
+            [0.86, 0.11, 0.03, 0.00],  # clear -> ...
+            [0.10, 0.80, 0.09, 0.01],  # cloudy -> ...
+            [0.05, 0.25, 0.65, 0.05],  # rain   -> ...
+            [0.02, 0.18, 0.45, 0.35],  # storm  -> ...
+        ],
+        dtype=float,
+    )
     factors = {"clear": 1.00, "cloudy": 0.90, "rain": 0.60, "storm": 0.45}
     ticks_per_hour = max(int(round(60 / dt_min)), 1)
     return WeatherMC(
         states=states,
         P=P,
         factors=factors,
-        state_idx=0,                       # start at 'clear'
-        update_every_ticks=ticks_per_hour, # change weather hourly
-        rng=np.random.default_rng(seed)
+        state_idx=0,  # start at 'clear'
+        update_every_ticks=ticks_per_hour,  # change weather hourly
+        rng=np.random.default_rng(seed),
     )

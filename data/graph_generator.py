@@ -1,13 +1,21 @@
-import argparse, math
+import argparse
+import math
 from pathlib import Path
-import numpy as np, pandas as pd, yaml, osmnx as ox, networkx as nx
+
+import networkx as nx
+import numpy as np
+import osmnx as ox
+import pandas as pd
+import yaml
+
 
 def haversine_km(lat1, lon1, lat2, lon2):
     R = 6371.0088
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
-    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1))*math.cos(math.radians(lat2))*math.sin(dlon/2)**2
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
     return 2 * R * math.asin(math.sqrt(a))
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -15,8 +23,17 @@ def main():
     parser.add_argument("--n", type=int, default=10)
     parser.add_argument("--city", type=str, default="Porto, Portugal")
     parser.add_argument("--speed-kmh", type=float, default=15.0)
-    parser.add_argument("--min-spacing-m", type=float, default=500.0, help="min pairwise spacing between stations")
-    parser.add_argument("--symmetrize", action="store_true", help="make distance/time matrices symmetric")
+    parser.add_argument(
+        "--min-spacing-m",
+        type=float,
+        default=500.0,
+        help="min pairwise spacing between stations",
+    )
+    parser.add_argument(
+        "--symmetrize",
+        action="store_true",
+        help="make distance/time matrices symmetric",
+    )
     args = parser.parse_args()
 
     print(f"Building synthetic {args.n}-node network for {args.city} ...")
@@ -24,8 +41,10 @@ def main():
     # 1) Get OSM bike graph and keep the largest connected component (undirected)
     G = ox.graph_from_place(args.city, network_type="bike", simplify=True)
     print("Graph downloaded:", len(G), "nodes")
-    G_lcc = ox.truncate.largest_component(G, strongly=False)  # keep largest weakly-connected component on directed graph
-    Gu = ox.convert.to_undirected(G_lcc)  # then convert to undirected for symmetric routing
+    # keep largest weakly-connected component on directed graph
+    G_lcc = ox.truncate.largest_component(G, strongly=False)
+    # then convert to undirected for symmetric routing
+    Gu = ox.convert.to_undirected(G_lcc)
     print("Largest connected component (undirected):", len(Gu), "nodes")
 
     # 2) Pick N graph nodes as pseudo-stations with min spacing
@@ -42,7 +61,8 @@ def main():
         for s in sel:
             lat_s, lon_s = Gu.nodes[s]["y"], Gu.nodes[s]["x"]
             if haversine_km(lat_c, lon_c, lat_s, lon_s) * 1000.0 < args.min_spacing_m:
-                ok = False; break
+                ok = False
+                break
         if ok:
             sel.append(cand_node)
 
@@ -50,15 +70,15 @@ def main():
         raise RuntimeError(f"Could only place {len(sel)} stations with min-spacing {args.min_spacing_m} m. Reduce spacing or N.")
 
     coords = np.array([(Gu.nodes[n]["y"], Gu.nodes[n]["x"]) for n in sel])
-    df = pd.DataFrame(coords, columns=["lat","lon"])
-    df["id"] = [f"S{i+1}" for i in range(args.n)]
-    df["name"] = [f"Station_{i+1}" for i in range(args.n)]
+    df = pd.DataFrame(coords, columns=["lat", "lon"])
+    df["id"] = [f"S{i + 1}" for i in range(args.n)]
+    df["name"] = [f"Station_{i + 1}" for i in range(args.n)]
     df["capacity"] = 12
 
     # 3) Compute distance and travel-time matrices
     N = len(df)
-    dist_km = np.zeros((N,N), dtype=float)
-    time_min = np.zeros((N,N), dtype=float)
+    dist_km = np.zeros((N, N), dtype=float)
+    time_min = np.zeros((N, N), dtype=float)
 
     for i in range(N):
         for j in range(N):
@@ -68,13 +88,18 @@ def main():
                 route = nx.shortest_path(Gu, sel[i], sel[j], weight="length")
                 edges_gdf = ox.routing.route_to_gdf(Gu, route)
                 Lm = float(edges_gdf["length"].sum())
-                dist_km[i,j] = Lm / 1000.0
-                time_min[i,j] = (dist_km[i,j] / max(args.speed_kmh, 1e-6)) * 60.0
+                dist_km[i, j] = Lm / 1000.0
+                time_min[i, j] = (dist_km[i, j] / max(args.speed_kmh, 1e-6)) * 60.0
             except Exception:
                 # Fallback (should be rare after LCC): haversine distance
-                d_km = haversine_km(df.loc[i,"lat"], df.loc[i,"lon"], df.loc[j,"lat"], df.loc[j,"lon"])
-                dist_km[i,j] = d_km
-                time_min[i,j] = (d_km / max(args.speed_kmh, 1e-6)) * 60.0
+                d_km = haversine_km(
+                    df.loc[i, "lat"],
+                    df.loc[i, "lon"],
+                    df.loc[j, "lat"],
+                    df.loc[j, "lon"],
+                )
+                dist_km[i, j] = d_km
+                time_min[i, j] = (d_km / max(args.speed_kmh, 1e-6)) * 60.0
 
     # Optional: symmetrize (useful for first experiments)
     if args.symmetrize:
@@ -96,8 +121,8 @@ def main():
         },
         "demand": {"base_lambda_per_dt": 0.8},
         "energy": {
-            "chargers_per_station": [2]*N,
-            "charge_rate_soc_per_hour": [0.25]*N,
+            "chargers_per_station": [2] * N,
+            "charge_rate_soc_per_hour": [0.25] * N,
             "battery_kwh_per_vehicle": 0.5,
             "energy_cost_per_kwh_eur": 0.20,
         },
@@ -107,6 +132,7 @@ def main():
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, sort_keys=False)
+
 
 if __name__ == "__main__":
     main()

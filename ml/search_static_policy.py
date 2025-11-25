@@ -65,23 +65,18 @@ def compute_episode_kpis(env: PortoMicromobilityEnv):
         "availability_avg": round(availability_avg, 3),
         "queue_total_max": queue_max,
         "queue_total_avg": round(queue_avg, 2),
-
         "relocation_km_total": round(reloc_km_total, 2),
         "reloc_ops_total": reloc_ops_total,
-
         "charging_energy_kwh_total": round(charge_energy_kwh_total, 2),
         "charging_cost_eur_total": round(charge_cost_eur_total, 2),
         "charge_utilization_avg": round(charge_util_avg, 3),
-
         "overflow_rerouted_total": overflow_rerouted_total,
         "overflow_dropped_total": overflow_dropped_total,
         "overflow_extra_min_total": round(overflow_extra_min_total, 1),
-
         "soc_mean_avg": round(soc_mean_avg, 3),
         "full_ratio_avg": round(full_ratio_avg, 3),
         "empty_ratio_avg": round(empty_ratio_avg, 3),
         "stock_std_avg": round(stock_std_avg, 3),
-
         "J_run": round(J_run, 3),
         "J_sum": round(J_sum, 3),
         "ticks": T,
@@ -194,17 +189,12 @@ def main():
             }
 
         print(
-            f"[{k+1}/{args.n_candidates}] "
-            f"action={np.round(action, 3)} "
-            f"avg_J_run={res['avg_J_run']:.3f}",
+            f"[{k + 1}/{args.n_candidates}] action={np.round(action, 3)} avg_J_run={res['avg_J_run']:.3f}",
             flush=True,
         )
 
-
-
     print("\n==== BEST STATIC POLICY ====", flush=True)
     print(json.dumps(best, indent=2))
-
 
 
 if __name__ == "__main__":

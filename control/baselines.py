@@ -1,8 +1,18 @@
 import numpy as np
 
 
-def plan_greedy(x, C, travel_min, *, low=0.2, high=0.8, target=0.6,
-                hysteresis=0.03, max_moves=50, distance_penalty=0.0):
+def plan_greedy(
+    x,
+    C,
+    travel_min,
+    *,
+    low=0.2,
+    high=0.8,
+    target=0.6,
+    hysteresis=0.03,
+    max_moves=50,
+    distance_penalty=0.0,
+):
     """
     Move vehicles from surplus to deficit stations.
     - low/high: trigger thresholds
@@ -24,10 +34,7 @@ def plan_greedy(x, C, travel_min, *, low=0.2, high=0.8, target=0.6,
 
     for i in need:
         # donors ordered by "effective cost": distance + small penalty
-        donors = sorted(
-            have,
-            key=lambda j: (travel_min[j, i] * (1.0 + distance_penalty))
-        )
+        donors = sorted(have, key=lambda j: (travel_min[j, i] * (1.0 + distance_penalty)))
         for j in donors:
             # donor surplus above target; receiver gap up to target
             surplus = x[j] - max(high * C[j], target * C[j])
@@ -44,6 +51,7 @@ def plan_greedy(x, C, travel_min, *, low=0.2, high=0.8, target=0.6,
             if x[i] >= low * C[i]:
                 break
     return plan
+
 
 # simple strategic charging (prioritize high demand & low SoC)
 def plan_charging_greedy(x, s, chargers, lam_t, *, threshold_quantile=0.5, min_score=None):
@@ -74,7 +82,7 @@ def plan_charging_greedy(x, s, chargers, lam_t, *, threshold_quantile=0.5, min_s
     # cold stations stay unplugged intentionally (to save energy)
     return plan
 
+
 def plan_nightly_uniform(x, C, target=0.6):
     # move from >target*C to <target*C once per night (call from main when hour==2)
     return []
-

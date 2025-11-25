@@ -10,6 +10,7 @@ from sim.weather_mc import make_default_weather_mc as weather_mc
 from sim.demand import effective_lambda
 from sim.events import events
 
+
 def main(cfg_path):
     with open(cfg_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
@@ -17,20 +18,24 @@ def main(cfg_path):
     N = int(cfg["network"]["n_stations"])
     C = np.full(N, int(cfg["network"]["capacity_default"]))
     tmin = np.array(cfg["network"]["travel_time_min"], dtype=float).reshape(N, N)
-    km   = np.array(cfg["network"]["distance_km"], dtype=float).reshape(N, N)
+    km = np.array(cfg["network"]["distance_km"], dtype=float).reshape(N, N)
 
     energy = cfg.get("energy", {})
-    chargers    = np.array(energy.get("chargers_per_station", [2]*N), dtype=int)
-    charge_rate = np.array(energy.get("charge_rate_soc_per_hour", [0.25]*N), dtype=float)
+    chargers = np.array(energy.get("chargers_per_station", [2] * N), dtype=int)
+    charge_rate = np.array(energy.get("charge_rate_soc_per_hour", [0.25] * N), dtype=float)
     battery_kwh = float(energy.get("battery_kwh_per_vehicle", 0.5))
     energy_cost = float(energy.get("energy_cost_per_kwh_eur", 0.20))
 
     simcfg = SimConfig(
         dt_min=int(cfg["time"]["dt_minutes"]),
         horizon_h=int(cfg["time"]["horizon_hours"]),
-        capacity=C, travel_min=tmin, charge_rate=charge_rate,
-        cost_km=km, chargers=chargers,
-        battery_kwh=battery_kwh, energy_cost_per_kwh=energy_cost,
+        capacity=C,
+        travel_min=tmin,
+        charge_rate=charge_rate,
+        cost_km=km,
+        chargers=chargers,
+        battery_kwh=battery_kwh,
+        energy_cost_per_kwh=energy_cost,
     )
     sim = Sim(simcfg, np.random.default_rng(int(cfg.get("seed", 42))))
 
@@ -42,7 +47,14 @@ def main(cfg_path):
     steps = int(simcfg.horizon_h * 60 / simcfg.dt_min)
     events_matrix = events(steps, N, rng=sim.rng)
     if steps <= 0:
-        print({"error": "No steps to run", "horizon_h": simcfg.horizon_h, "dt_min": simcfg.dt_min}, flush=True)
+        print(
+            {
+                "error": "No steps to run",
+                "horizon_h": simcfg.horizon_h,
+                "dt_min": simcfg.dt_min,
+            },
+            flush=True,
+        )
         return
 
     total_reloc_km = 0.0
@@ -50,28 +62,42 @@ def main(cfg_path):
         for step in range(steps):
             hour = (step * simcfg.dt_min / 60.0) % 24
 
-            _w_state = W.step()      # e.g., "clear", "rain", ...
-            w_fac    = W.factor      # numeric multiplier, e.g., 1.0, 0.6, ...
+            _w_state = W.step()  # e.g., "clear", "rain", ...
+            w_fac = W.factor  # numeric multiplier, e.g., 1.0, 0.6, ...
 
-
-            lam_t = effective_lambda(base_lambda, hour, weather_fac=w_fac, event_fac_vec= events_matrix[step])
+            lam_t = effective_lambda(base_lambda, hour, weather_fac=w_fac, event_fac_vec=events_matrix[step])
 
             reloc = plan_greedy(
-                sim.x, simcfg.capacity, simcfg.travel_min,
-                low=0.25, high=0.8, target=0.6, hysteresis=0.03, max_moves=50
+                sim.x,
+                simcfg.capacity,
+                simcfg.travel_min,
+                low=0.25,
+                high=0.8,
+                target=0.6,
+                hysteresis=0.03,
+                max_moves=50,
             )
             charge_plan = plan_charging_greedy(
-                sim.x, sim.s, simcfg.chargers, lam_t,
-                threshold_quantile=0.5  # only plug top-50% urgent stations
+                sim.x,
+                sim.s,
+                simcfg.chargers,
+                lam_t,
+                threshold_quantile=0.5,  # only plug top-50% urgent stations
             )
 
-            sim.step(lam_t, P, weather_fac=1.0, event_fac=None,
-                     reloc_plan=reloc, charging_plan=charge_plan)
+            sim.step(
+                lam_t,
+                P,
+                weather_fac=1.0,
+                event_fac=None,
+                reloc_plan=reloc,
+                charging_plan=charge_plan,
+            )
 
             total_reloc_km += sim.logs[-1]["reloc_km"]
 
             # lightweight progress every simulated 6 hours
-            if step % max(1, int((6*60)/simcfg.dt_min)) == 0:
+            if step % max(1, int((6 * 60) / simcfg.dt_min)) == 0:
                 sys.stdout.write(".")
                 sys.stdout.flush()
     except Exception as e:
@@ -99,31 +125,31 @@ def main(cfg_path):
     charge_util_avg = float(np.mean([r.get("charge_utilization", 0.0) for r in sim.logs]))
 
     print("\n", flush=True)
-    print({
-        "unmet_total": unmet_total,
-        "availability_avg": round(avail_avg, 3),
+    print(
+        {
+            "unmet_total": unmet_total,
+            "availability_avg": round(avail_avg, 3),
+            "queue_total_max": max_queue,
+            "queue_total_avg": round(avg_queue, 2),
+            "relocation_km_total": round(reloc_km_tot, 2),
+            "reloc_ops_total": reloc_ops_total,
+            "charging_energy_kwh_total": round(energy_kwh, 2),
+            "charging_cost_eur_total": round(energy_eur, 2),
+            "charge_utilization_avg": round(charge_util_avg, 3),
+            "overflow_rerouted_total": overflow_rerouted_total,
+            "overflow_dropped_total": overflow_dropped_total,  # 0 if not logged
+            "overflow_extra_min_total": round(overflow_extra_min_tot, 1),
+            "soc_mean_avg": round(soc_mean_avg, 3),
+            "full_ratio_avg": round(full_ratio_avg, 3),
+            "empty_ratio_avg": round(empty_ratio_avg, 3),
+            "stock_std_avg": round(stock_std_avg, 3),
+            "ticks": steps,
+            "dt_min": simcfg.dt_min,
+            "stations": N,
+        },
+        flush=True,
+    )
 
-        "queue_total_max": max_queue,
-        "queue_total_avg": round(avg_queue, 2),
-
-        "relocation_km_total": round(reloc_km_tot, 2),
-        "reloc_ops_total": reloc_ops_total,
-
-        "charging_energy_kwh_total": round(energy_kwh, 2),
-        "charging_cost_eur_total": round(energy_eur, 2),
-        "charge_utilization_avg": round(charge_util_avg, 3),
-
-        "overflow_rerouted_total": overflow_rerouted_total,
-        "overflow_dropped_total": overflow_dropped_total,  # 0 if not logged
-        "overflow_extra_min_total": round(overflow_extra_min_tot, 1),
-
-        "soc_mean_avg": round(soc_mean_avg, 3),
-        "full_ratio_avg": round(full_ratio_avg, 3),
-        "empty_ratio_avg": round(empty_ratio_avg, 3),
-        "stock_std_avg": round(stock_std_avg, 3),
-
-        "ticks": steps, "dt_min": simcfg.dt_min, "stations": N,
-    }, flush=True)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

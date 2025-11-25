@@ -22,10 +22,10 @@ class HeuristicAgent:
         self.action_dim = action_dim
 
     def act(self, obs) -> np.ndarray:
-        fill = obs["fill_ratio"]       # (N,)
-        soc = obs["soc"]               # (N,)
-        waiting = obs["waiting"]       # (N,)
-        tod = obs["time_of_day"]       # (2,)
+        fill = obs["fill_ratio"]  # (N,)
+        soc = obs["soc"]  # (N,)
+        waiting = obs["waiting"]  # (N,)
+        tod = obs["time_of_day"]  # (2,)
 
         avg_fill = float(np.mean(fill))
         empty_frac = float(np.mean(fill < 0.1))
@@ -130,9 +130,9 @@ def compute_episode_kpis(env: PortoMicromobilityEnv):
     # Approximated using:
     #   availability_avg, reloc_km_total, charge_cost_total
     J_sum = (
-            w.alpha_unavailability * T * (1.0 - availability_avg)
-            + w.beta_reloc_km * reloc_km_total
-            + w.gamma_energy_cost * charge_cost_eur_total
+        w.alpha_unavailability * T * (1.0 - availability_avg)
+        + w.beta_reloc_km * reloc_km_total
+        + w.gamma_energy_cost * charge_cost_eur_total
     )
 
     # Average cost per tick
@@ -143,23 +143,18 @@ def compute_episode_kpis(env: PortoMicromobilityEnv):
         "availability_avg": round(availability_avg, 3),
         "queue_total_max": queue_max,
         "queue_total_avg": round(queue_avg, 2),
-
         "relocation_km_total": round(reloc_km_total, 2),
         "reloc_ops_total": reloc_ops_total,
-
         "charging_energy_kwh_total": round(charge_energy_kwh_total, 2),
         "charging_cost_eur_total": round(charge_cost_eur_total, 2),
         "charge_utilization_avg": round(charge_util_avg, 3),
-
         "overflow_rerouted_total": overflow_rerouted_total,
         "overflow_dropped_total": overflow_dropped_total,
         "overflow_extra_min_total": round(overflow_extra_min_total, 1),
-
         "soc_mean_avg": round(soc_mean_avg, 3),
         "full_ratio_avg": round(full_ratio_avg, 3),
         "empty_ratio_avg": round(empty_ratio_avg, 3),
         "stock_std_avg": round(stock_std_avg, 3),
-
         "J_run": round(J_run, 3),
         "ticks": len(logs),
     }
