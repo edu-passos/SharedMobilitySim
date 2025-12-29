@@ -57,7 +57,7 @@ def plan_greedy(
                     return plan
 
             # stop early if station i is no longer in need
-            if x[i] >= low * C[i]:
+            if x[i] >= min(low * C[i], target * C[i]):
                 break
     return plan
 
