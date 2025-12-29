@@ -72,12 +72,24 @@ def plan_charging_greedy(
     threshold_quantile: float = 0.5,
     min_score: float | None = None,
 ) -> np.ndarray:
-    """Return per-station number of vehicles to plug this tick.
+    """Plan charging vehicles at stations based on expected demand and SoC.
 
     Prioritizes stations with high expected demand and low SoC:
         score[i] = lam_t[i] * (1 - s[i])
     Only stations with score above a threshold are plugged.
     Local constraints: plan[i] <= min(chargers[i], x[i]).
+
+    Args:
+        x: current vehicle counts
+        s: current average SoC per station
+        chargers: number of available chargers per station
+        lam_t: expected demand rate per station this tick
+        threshold_quantile: quantile for score threshold (e.g., 0.5 means top-50% stations get charged)
+        min_score: alternative absolute minimum score threshold (overrides quantile if set)
+
+    Returns:
+        Per-station number of vehicles to plug this tick.
+
     """
     x = np.asarray(x)
     s = np.asarray(s)
@@ -93,6 +105,7 @@ def plan_charging_greedy(
     hot = np.where(score >= thr)[0]
     if hot.size:
         plan[hot] = np.minimum(chargers[hot], x[hot]).astype(int)
+
     # cold stations stay unplugged intentionally (to save energy)
     return plan
 

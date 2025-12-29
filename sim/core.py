@@ -95,8 +95,8 @@ class Sim:
 
         # Remove departing vehicles + their SoC mass
         if can_serve.sum():
-            self.m -= can_serve * avg_at_depart
             self.x -= can_serve
+            self.m -= can_serve * avg_at_depart
 
         # 2) Spawn trips (schedule arrivals with s_depart carried)
         if can_serve.sum():
@@ -123,6 +123,7 @@ class Sim:
         for _, j, soc_use, s_depart in due:
             s_arrive = max(0.0, s_depart - soc_use)
             if self.x[j] < self.cfg.capacity[j]:
+                # dock at station j
                 self.x[j] += 1
                 self.m[j] += s_arrive
             else:
@@ -213,6 +214,7 @@ class Sim:
         """Clip to [0, chargers, x]. If None, default: plug as many as possible."""
         if charging_plan is None:
             return np.minimum(self.cfg.chargers, self.x).astype(int)
+
         plan = np.asarray(charging_plan, dtype=int).copy()
         plan = np.clip(plan, 0, None)
         plan = np.minimum(plan, self.cfg.chargers)

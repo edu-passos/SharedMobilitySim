@@ -162,7 +162,7 @@ def compute_episode_kpis(env: PortoMicromobilityEnv) -> dict[str, float]:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="configs/network_prtp_10.yaml")
+    parser.add_argument("--config", default="configs/network_porto10.yaml")
     parser.add_argument("--hours", type=int, default=24)
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--seed", type=int, default=42)
