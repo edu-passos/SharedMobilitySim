@@ -58,6 +58,8 @@ ignore = [
     "EM102",   # f-string-in-exception
     "FIX002",  # line-contains-todo
     "G004",    # logging-f-string
+    "N803",    # invalid-argument-name (UPPERCASE names allowed for accurate mapping of mathematical formulas' symbols)
+    "N806",    # non-lowercase-variable-in-function (same as above)
     "PLR0913", # too-many-arguments
     "PLR2004", # magic-value-comparison
     "S101",    # assert

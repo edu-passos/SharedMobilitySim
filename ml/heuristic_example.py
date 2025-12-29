@@ -10,10 +10,10 @@ class HeuristicAgent:
     """Heuristic agent for PortoMicromobilityEnv.
 
     It looks at:
-      - fill_ratio (how full stations are)
-      - soc (battery)
-      - waiting (customers in queue)
-      - time_of_day (sin/cos)
+        - fill_ratio (how full stations are)
+        - soc (battery)
+        - waiting (customers in queue)
+        - time_of_day (sin/cos)
     and outputs 4 numbers in [0,1] that control relocation & charging thresholds.
     """
 

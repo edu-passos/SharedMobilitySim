@@ -1,4 +1,5 @@
 import argparse
+import math
 import sys
 from pathlib import Path
 
@@ -16,10 +17,18 @@ def main(cfg_path: str) -> None:
     with Path(cfg_path).open("r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
-    N = int(cfg["network"]["n_stations"])
-    C = np.full(N, int(cfg["network"]["capacity_default"]))
-    tmin = np.array(cfg["network"]["travel_time_min"], dtype=float).reshape(N, N)
-    km = np.array(cfg["network"]["distance_km"], dtype=float).reshape(N, N)
+    time_cfg = cfg.get("time", {})
+    time_step = int(time_cfg["dt_minutes"])
+    sim_duration = int(time_cfg["horizon_hours"])
+
+    network_cfg = cfg.get("network", {})
+    N = int(network_cfg["n_stations"])
+    C = np.full(N, int(network_cfg["capacity_default"]))
+    tmin = np.array(network_cfg["travel_time_min"], dtype=float).reshape(N, N)
+    km = np.array(network_cfg["distance_km"], dtype=float).reshape(N, N)
+
+    demand_cfg = cfg.get("demand", {})
+    base_lambda = np.full(N, float(demand_cfg["base_lambda_per_dt"]))
 
     energy = cfg.get("energy", {})
     chargers = np.array(energy.get("chargers_per_station", [2] * N), dtype=int)
@@ -28,24 +37,24 @@ def main(cfg_path: str) -> None:
     energy_cost = float(energy.get("energy_cost_per_kwh_eur", 0.20))
 
     simcfg = SimConfig(
-        dt_min=int(cfg["time"]["dt_minutes"]),
-        horizon_h=int(cfg["time"]["horizon_hours"]),
+        dt_min=time_step,
+        horizon_h=sim_duration,
         capacity=C,
         travel_min=tmin,
-        charge_rate=charge_rate,
         cost_km=km,
         chargers=chargers,
+        charge_rate=charge_rate,
         battery_kwh=battery_kwh,
         energy_cost_per_kwh=energy_cost,
     )
-    sim = Sim(simcfg, np.random.default_rng(int(cfg.get("seed", 42))))
+    sim_seed = int(cfg.get("seed", 42))
+    sim = Sim(simcfg, np.random.default_rng(sim_seed))
 
-    base_lambda = np.full(N, float(cfg["demand"]["base_lambda_per_dt"]))
-    P = np.full((N, N), 1.0 / N, dtype=float)  # placeholder OD
+    P = np.full((N, N), 1.0 / N, dtype=float)  # placeholder Orig-dest prob matrix
 
-    W = weather_mc(dt_min=simcfg.dt_min, seed=int(cfg.get("seed", 42)))
+    W = weather_mc(dt_min=simcfg.dt_min, seed=sim_seed)
 
-    steps = int(simcfg.horizon_h * 60 / simcfg.dt_min)
+    steps = math.ceil(simcfg.horizon_h * 60 / simcfg.dt_min)
     events_matrix = events(steps, N, rng=sim.rng)
     if steps <= 0:
         print(

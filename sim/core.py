@@ -10,13 +10,15 @@ Move = tuple[int, int, int]  # (i -> j, k units)
 class SimConfig:
     """Minimal config for a docked shared-mobility sim."""
 
-    dt_min: int  # minutes per tick
+    # Simulation parameters
+    dt_min: int  # time step (delta t) in minutes
     horizon_h: int  # total hours to simulate
+    # System parameters
     capacity: np.ndarray  # (N,) max vehicles per station
     travel_min: np.ndarray  # (N,N) travel time matrix (minutes)
-    charge_rate: np.ndarray  # (N,) SoC/hour when plugged (e.g. 0.25 => +25%/h)
     cost_km: np.ndarray  # (N,N) relocation distance or cost
     chargers: np.ndarray  # (N,) plugs per station
+    charge_rate: np.ndarray  # (N,) SoC/hour when plugged (e.g. 0.25 => +25%/h)
     battery_kwh: float  # kWh per vehicle @ 100% SoC
     energy_cost_per_kwh: float  # €/kWh
 

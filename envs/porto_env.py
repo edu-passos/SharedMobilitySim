@@ -128,9 +128,9 @@ class PortoMicromobilityEnv:
             horizon_h=self.episode_hours,
             capacity=C,
             travel_min=tmin,
-            charge_rate=charge_rate,
             cost_km=km,
             chargers=chargers,
+            charge_rate=charge_rate,
             battery_kwh=battery_kwh,
             energy_cost_per_kwh=energy_cost,
         )

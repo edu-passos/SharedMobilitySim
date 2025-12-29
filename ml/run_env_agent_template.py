@@ -10,12 +10,12 @@ class DummyAgent:
     """Template agent.
 
     Replace the logic in `act()` with your model:
-      - can be random
-      - can be a neural network
-      - can be a GNN that reads obs and outputs 4 numbers in [0,1].
+        - can be random
+        - can be a neural network
+        - can be a GNN that reads obs and outputs 4 numbers in [0,1].
     """
 
-    def __init__(self, action_dim: int = 4):
+    def __init__(self, action_dim: int = 4) -> None:
         self.action_dim = action_dim
 
     def act(self, obs) -> np.ndarray:

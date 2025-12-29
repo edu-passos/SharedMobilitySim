@@ -13,13 +13,21 @@ def plan_greedy(
     max_moves: int = 50,
     distance_penalty: float = 0.0,
 ) -> list[tuple[int, int, int]]:
-    """Move vehicles from surplus to deficit stations.
+    """Move vehicles from surplus (donor) to deficit (receiver) stations.
 
     Args:
-        low/high: trigger thresholds
+        x: current vehicle counts
+        C: station capacities
+        travel_min: min travel times between stations
+        low: lower station fill ratio threshold (trigger threshold) - stations below this need vehicles
+        high: upper station fill ratio threshold (trigger threshold) - stations above this can donate vehicles
         target: preferred fill ratio after moves
         hysteresis: avoids ping-pong (donor must be > high+hyst, receiver < low-hyst)
+        max_moves: limit number of moves per planning call
         distance_penalty: prioritize nearer donors (add penalty * distance to the gap)
+
+    Returns:
+        List of (from_station, to_station, num_vehicles) moves
     """
     x = np.asarray(x, dtype=float).copy()
     C = np.asarray(C, dtype=float)
