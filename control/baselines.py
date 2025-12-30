@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def plan_greedy(
+def plan_relocation_greedy(
     x: np.ndarray,
     C: np.ndarray,
     travel_min: np.ndarray,

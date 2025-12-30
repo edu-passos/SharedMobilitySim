@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from control.baselines import plan_charging_greedy, plan_greedy
+from control.baselines import plan_charging_greedy, plan_relocation_greedy
 from sim.core import Sim, SimConfig
 from sim.demand import effective_lambda
 from sim.events import events
@@ -77,7 +77,7 @@ def main(cfg_path: str) -> None:
 
             lam_t = effective_lambda(base_lambda, hour, weather_fac=w_fac, event_fac_vec=events_matrix[step])
 
-            reloc = plan_greedy(
+            reloc = plan_relocation_greedy(
                 sim.x,
                 simcfg.capacity,
                 simcfg.travel_min,

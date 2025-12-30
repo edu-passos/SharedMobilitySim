@@ -112,10 +112,11 @@ class PortoMicromobilityEnv:
 
         # Build SimConfig
         cfg = self._cfg
-        N = int(cfg["network"]["n_stations"])
-        C = np.full(N, int(cfg["network"]["capacity_default"]))
-        tmin = np.array(cfg["network"]["travel_time_min"], dtype=float).reshape(N, N)
-        km = np.array(cfg["network"]["distance_km"], dtype=float).reshape(N, N)
+        network_cfg = cfg["network"]
+        N = int(network_cfg["n_stations"])
+        C = np.full(N, int(network_cfg["capacity_default"]))
+        tmin = np.array(network_cfg["travel_time_min"], dtype=float).reshape(N, N)
+        km = np.array(network_cfg["distance_km"], dtype=float).reshape(N, N)
 
         energy = cfg.get("energy", {})
         chargers = np.array(energy.get("chargers_per_station", [2] * N), dtype=int)
@@ -218,9 +219,9 @@ class PortoMicromobilityEnv:
     # -------------------- internals -------------------- #
 
     def _action_to_params(self, a: np.ndarray) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Map a 4-dim continuous action a ∈ R^4 to planner parameters.
+        """Map a 4-dimensional continuous action (a ∈ R^4) to planner parameters.
 
-        We clip to [0,1] and then scale into meaningful ranges.
+        We clip to [0,1] and then scale them into meaningful ranges.
         """
         a = np.asarray(a, dtype=float)
         if a.shape == ():
@@ -256,7 +257,7 @@ class PortoMicromobilityEnv:
     def _compute_reward(self, log: dict[str, Any]) -> float:
         """Per-tick reward: negative instantaneous cost.
 
-        J_t = α (1 - availability) + β * reloc_km + γ * charge_cost_eur
+        J_t = α * (1 - availability) + β * reloc_km + γ * charge_cost_eur
         reward_t = -J_t
         """  # noqa: RUF002
         alpha = self.score_weights.alpha_unavailability

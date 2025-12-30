@@ -40,9 +40,9 @@ REGISTRY = PlannerRegistry()
 
 # ---------- Built-in adapters (wrap your baseline functions) ----------
 def _reloc_greedy_adapter(x, C, travel_min, *, params: dict[str, Any]) -> Any:
-    from control.baselines import plan_greedy
+    from control.baselines import plan_relocation_greedy
 
-    return plan_greedy(x, C, travel_min, **params)
+    return plan_relocation_greedy(x, C, travel_min, **params)
 
 
 def _charge_greedy_adapter(x, s, chargers, lam_t, *, params: dict[str, Any]) -> Any:
