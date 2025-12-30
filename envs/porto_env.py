@@ -174,7 +174,7 @@ class PortoMicromobilityEnv:
         lam_t = effective_lambda(self.base_lambda, hour, weather_fac=w_fac, event_fac_vec=ev_vec)
 
         # 3) Compute plans using current state + params
-        reloc = self.reloc_planner(
+        reloc_plan = self.reloc_planner(
             self.sim.x,
             self.sim.cfg.capacity,
             self.sim.cfg.travel_min,
@@ -194,7 +194,7 @@ class PortoMicromobilityEnv:
             self.P,
             weather_fac=1.0,
             event_fac=None,  # already in lam_t
-            reloc_plan=reloc,
+            reloc_plan=reloc_plan,
             charging_plan=charge_plan,
         )
 
@@ -210,7 +210,7 @@ class PortoMicromobilityEnv:
             "weather_state": _w_state,
             "weather_factor": w_fac,
             "lam_t": lam_t,
-            "reloc_plan": reloc,
+            "reloc_plan": reloc_plan,
             "charge_plan": charge_plan,
             "kpi": log,
         }
