@@ -10,11 +10,14 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "gymnasium>=1.2.3",
     "networkx>=3.4.2",
     "numpy>=2.2.6",
     "osmnx>=2.0.6",
     "pandas>=2.3.3",
     "pyyaml>=6.0.3",
+    "stable-baselines3>=2.7.1",
+    "tensorboard>=2.20.0",
 ]
 
 [dependency-groups]

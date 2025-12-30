@@ -51,7 +51,7 @@ def compute_episode_kpis(env: PortoMicromobilityEnv) -> dict[str, float]:
     empty_ratio_avg = float(np.mean([r.get("empty_ratio", 0.0) for r in logs]))
     stock_std_avg = float(np.mean([r.get("stock_std", 0.0) for r in logs]))
 
-    # Episode-level cost: average per tick (same as your J_run definition)
+    # Episode-level cost: average per tick
     w = env.score_weights
     T = len(logs)
 
@@ -124,7 +124,7 @@ def evaluate_static_action(
             episode_hours=episode_hours,
             seed=base_seed + ep,
         )
-        agent = StaticPolicyAgent(action=action)
+        agent = StaticPolicyAgent(action)
 
         obs = env.reset()
         done = False
