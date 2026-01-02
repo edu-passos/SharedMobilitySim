@@ -286,5 +286,5 @@ score:
   alpha_unavailability: 50.0 # weight on 1 - availability_avg
   beta_reloc_km: 0.5 # weight on relocation_km_total
   gamma_energy_cost: 10.0 # weight on charging_cost_eur_total
-  delta_queue: float = 10.0 # weight on total_waiting_queue
+  delta_queue: 10.0 # weight on total_waiting_queue
 seed: 42

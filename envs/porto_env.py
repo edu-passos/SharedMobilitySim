@@ -44,7 +44,7 @@ class ScoreWeights:
     alpha_unavailability: float = 50.0  # weight on (1 - availability)
     beta_reloc_km: float = 0.5  # weight on total relocation km (per tick)
     gamma_energy_cost: float = 10.0  # weight on charging cost € (per tick)
-    delta_queue: float = 10 # weight on total waiting queue (per tick)
+    delta_queue: float = 10.0 # weight on total waiting queue (per tick)
 
 
 class PortoMicromobilityEnv:
@@ -154,8 +154,8 @@ class PortoMicromobilityEnv:
         self.P = np.full((N, N), 1.0 / N, dtype=float)  # uniform OD for now
 
         # Weather and events seeds
-        w_seed = int(self.rng.integers(1_000_000))
-        e_seed = int(self.rng.integers(1_000_000))
+        w_seed = seed + 12345
+        e_seed = seed + 67890
 
         # Weather & events 
         self.W = weather_mc(dt_min=self.dt_min, seed=w_seed)

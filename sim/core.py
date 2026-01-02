@@ -21,7 +21,7 @@ class SimConfig:
     charge_rate: np.ndarray  # (N,) SoC/hour when plugged (e.g. 0.25 => +25%/h)
     battery_kwh: float  # kWh per vehicle @ 100% SoC
     energy_cost_per_kwh: float  # €/kWh
-    soc_min_depart: float = 0.10     # min SoC needed for a rental to start
+    soc_min_depart: float = 0.00     # min SoC needed for a rental to start
     reserve_plugged: bool = True    # vehicles plugged this tick are not rentable
 
 
@@ -34,7 +34,10 @@ class Sim:
 
     def __init__(self, cfg: SimConfig, rng: np.random.Generator) -> None:
         self.cfg = cfg
-        self.rng = rng
+        # Split RNG into two independent streams deterministically
+        seed_root = rng.integers(0, 2**32 - 1, dtype=np.uint32).item()
+        self.rng_demand = np.random.default_rng(seed_root + 1)
+        self.rng_route  = np.random.default_rng(seed_root + 2)
 
         N = cfg.capacity.shape[0]
         assert cfg.travel_min.shape == (N, N), "travel_min must be NxN"
@@ -71,14 +74,14 @@ class Sim:
         N = self.x.shape[0]
 
         # Resolve charging plan early so we can reserve those vehicles from rentals this tick
-        plan = self._resolve_charging_plan(charging_plan)
+        plan_reserve = self._resolve_charging_plan(charging_plan)
 
         # 1) Demand arrivals and service
         lam_eff = lam_t * weather_fac
         if event_fac is not None:
             lam_eff = lam_eff * event_fac
 
-        A = self.rng.poisson(lam_eff)            # new arrivals per station
+        A = self.rng_demand.poisson(lam_eff)            # new arrivals per station
         q0 = self.waiting.copy()                 # backlog before arrivals
         x0 = self.x.copy()                       # physical stock before service
         m0 = self.m.copy()                       # SoC mass before service
@@ -93,20 +96,29 @@ class Sim:
 
         # Reserve vehicles that are going to be charged this tick (not rentable now)
         reserve_plugged = bool(getattr(self.cfg, "reserve_plugged", True))
+
+        x_rentable_base = x0.copy()
         if reserve_plugged:
-            x_rentable0 = np.maximum(0, x_rentable0 - plan)
+            x_rentable_base = np.maximum(0, x_rentable_base - plan_reserve)
 
-
-        # SoC feasibility: approximate how many departures we can support given SoC mass
-        soc_min = float(getattr(self.cfg, "soc_min_depart", 0.10))
+        # SoC feasibility
+        soc_min = float(self.cfg.soc_min_depart)
+        x_rentable0 = x_rentable_base.copy()
         if soc_min > 0.0:
             rideable = np.floor(m0 / soc_min).astype(int)
             x_rentable0 = np.minimum(x_rentable0, rideable)
-        
-        rentable_frac = float(np.mean(x_rentable0 < x0))  # constrained by reserve_plugged or SoC
+
+        rentable_frac = float(np.mean(x_rentable0 < x0))
+
         soc_bind_frac = 0.0
         if soc_min > 0.0:
-            soc_bind_frac = float(np.mean(np.floor(m0 / soc_min).astype(int) < np.maximum(0, x0 - (plan if reserve_plugged else 0))))
+            rideable = np.floor(m0 / soc_min).astype(int)
+            soc_bind_frac = float(np.mean(rideable < x_rentable_base))
+
+        x_total_pre = int(x0.sum())
+        x_rentable_total_pre = int(x_rentable0.sum())
+
+
 
         # Serve as many as possible from the queue (FIFO implied), limited by rentable stock
         can_serve = np.minimum(x_rentable0, self.waiting)
@@ -145,7 +157,7 @@ class Sim:
             for i, k in enumerate(can_serve):
                 if k <= 0:
                     continue
-                dests = self.rng.choice(N, size=int(k), p=P_t[i])
+                dests = self.rng_route.choice(N, size=int(k), p=P_t[i])
                 tij = self.cfg.travel_min[i, dests].astype(int)
                 uses = np.clip(0.01 + 0.12 * (tij / 60.0), 0.0, 1.0)
                 s_dep = float(avg_at_depart[i])
@@ -179,20 +191,23 @@ class Sim:
                     overflow_dropped += 1
 
         # 4) Charging (operator decision) -> add mass to plugged units, then cap
-        plan = np.minimum(plan, np.minimum(self.cfg.chargers, self.x)).astype(int)
+        plan_exec = np.minimum(plan_reserve, np.minimum(self.cfg.chargers, self.x)).astype(int)
         total_chargers = int(np.sum(self.cfg.chargers))
-        charge_utilization = (int(plan.sum()) / total_chargers) if total_chargers > 0 else 0.0
+        charge_utilization = (int(plan_exec.sum()) / total_chargers) if total_chargers > 0 else 0.0
 
-        delta_soc = self.cfg.charge_rate * dt_h          # per plugged unit in this tick
-        self.m += plan * delta_soc                       # add SoC mass
-        self.m = np.minimum(self.m, self.x.astype(float) * 1.0)  # cap average SoC <= 1.0
+        delta_soc = self.cfg.charge_rate * dt_h
+        self.m += plan_exec * delta_soc
+        self.m = np.minimum(self.m, self.x.astype(float) * 1.0)
 
-        energy_kwh = float(np.sum(plan * self.cfg.battery_kwh * delta_soc))
+        energy_kwh = float(np.sum(plan_exec * self.cfg.battery_kwh * delta_soc))
         charge_cost = energy_kwh * self.cfg.energy_cost_per_kwh
         soc_mean_vehicles = float(self.m.sum() / max(self.x.sum(), 1))
 
         # 5) Apply relocation plan (move both count and mass)
         reloc_km = 0.0
+        reloc_units = 0
+        reloc_edges = 0
+
         if reloc_plan:
             for i, j, k in reloc_plan:
                 if k <= 0:
@@ -200,6 +215,10 @@ class Sim:
                 move = int(min(k, self.x[i], self.cfg.capacity[j] - self.x[j]))
                 if move <= 0:
                     continue
+
+                reloc_edges += 1
+                reloc_units += move
+
                 avg_i = 0.0 if self.x[i] == 0 else (self.m[i] / self.x[i])
                 mass_move = move * avg_i
                 self.x[i] -= move
@@ -213,37 +232,70 @@ class Sim:
         self.m = np.clip(self.m, 0.0, self.x.astype(float))
         self._refresh_avg_soc()
 
-        self.logs.append(
-            {
-                "t_min": self.t,
-                # demand/service
-                "availability": float(availability),
-                "queue_rate": float(queue_rate),
-                "queue_total": queue_total,
-                "requests_total": requests_total,
-                "demand_total": demand_total,
-                "served_total": served_total,
-                "served_new_total": served_new_total,
-                "unmet": int(unmet_tick),
-                # ops
-                "reloc_km": reloc_km,
-                "plugged": int(plan.sum()),
-                "charge_energy_kwh": energy_kwh,
-                "charge_cost_eur": charge_cost,
-                "soc_mean_vehicles": soc_mean_vehicles,
-                "rentable_frac": rentable_frac,
-                "soc_bind_frac": soc_bind_frac,
-                "overflow_rerouted": int(overflow_rerouted),
-                "overflow_extra_min": float(overflow_extra_min),
-                "soc_mean": float(np.mean(self.s)),
-                "full_ratio": float(np.mean(self.x == self.cfg.capacity)),
-                "empty_ratio": float(np.mean(self.x == 0)),
-                "stock_std": float(np.std(self.x)),
-                "reloc_ops": int(sum(k for *_ij, k in (reloc_plan or []))),
-                "charge_utilization": float(charge_utilization),
-            }
-        )
+        fill = self.x.astype(float) / np.maximum(self.cfg.capacity, 1)
+        fill_p10 = float(np.percentile(fill, 10))
+        fill_p90 = float(np.percentile(fill, 90))
+
+        soc_station = np.zeros_like(self.s, dtype=float)
+        mask_post = self.x > 0
+        soc_station[mask_post] = self.m[mask_post] / self.x[mask_post]
+        soc_station_min = float(soc_station[mask_post].min()) if np.any(mask_post) else 0.0
+        soc_station_p10 = float(np.percentile(soc_station[mask_post], 10)) if np.any(mask_post) else 0.0
+
+        self.logs.append({
+            "t_min": self.t,
+
+            # demand/service
+            "availability": float(availability),
+            "queue_rate": float(queue_rate),
+            "queue_total": queue_total,
+            "requests_total": requests_total,
+            "demand_total": demand_total,
+            "served_total": served_total,
+            "served_new_total": served_new_total,
+            "unmet": int(unmet_tick),
+
+            # rentability primitives
+            "x_total_pre": x_total_pre,
+            "x_rentable_total_pre": x_rentable_total_pre,
+            "rentable_frac": rentable_frac,
+            "soc_bind_frac": soc_bind_frac,
+
+            # operations
+            "reloc_km": float(reloc_km),
+            "reloc_units": int(reloc_units),
+            "reloc_edges": int(reloc_edges),
+
+            "plugged_reserve": int(plan_reserve.sum()),
+            "plugged": int(plan_exec.sum()),  # executed
+            "charge_energy_kwh": float(energy_kwh),
+            "charge_cost_eur": float(charge_cost),
+            "overflow_dropped": int(overflow_dropped),
+
+
+            # SoC
+            "soc_mean": float(np.mean(self.s)),
+            "soc_mean_vehicles": float(soc_mean_vehicles),
+            "soc_station_min": soc_station_min,
+            "soc_station_p10": soc_station_p10,
+
+            # fill distribution
+            "fill_p10": fill_p10,
+            "fill_p90": fill_p90,
+
+            # system state
+            "full_ratio": float(np.mean(self.x == self.cfg.capacity)),
+            "empty_ratio": float(np.mean(self.x == 0)),
+            "stock_std": float(np.std(self.x)),
+
+            # overflow/charging util
+            "overflow_rerouted": int(overflow_rerouted),
+            "overflow_extra_min": float(overflow_extra_min),
+            "charge_utilization": float(charge_utilization),
+        })
         self.t = t_next
+
+        
 
 
     # ------------------------- helpers -------------------------
