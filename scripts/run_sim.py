@@ -92,7 +92,6 @@ def main(cfg_path: str) -> None:
                 sim.s,
                 simcfg.chargers,
                 lam_t,
-                threshold_quantile=0.5,  # only plug top-50% urgent stations
             )
 
             sim.step(

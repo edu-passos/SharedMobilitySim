@@ -71,8 +71,9 @@ def plan_charging_greedy(
     lam_t: np.ndarray,
     *,
     charge_budget_frac: float = 1.0,
-    threshold_quantile: float = 0.5,
     min_score: float | None = None,
+    keep_min_rentable: int = 1,
+    keep_frac_rentable: float = 0.5
 ) -> np.ndarray:
     """Plan charging vehicles at stations based on expected demand and SoC.
 
@@ -116,6 +117,8 @@ def plan_charging_greedy(
     order = np.argsort(-score)
     plan = np.zeros_like(x, dtype=int)
     remaining = budget
+    keep = np.maximum(keep_min_rentable, np.ceil(keep_frac_rentable * x)).astype(int)
+    cap = np.minimum(chargers, np.maximum(0, x - keep)).astype(int)
     for i in order:
         if remaining <= 0:
             break

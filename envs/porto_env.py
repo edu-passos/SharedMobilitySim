@@ -253,13 +253,13 @@ class PortoMicromobilityEnv:
         low = 0.1 + 0.2 * a[0]  # [0.1, 0.3]
         high = 0.6 + 0.3 * a[1]  # [0.6, 0.9]
         target = 0.4 + 0.4 * a[2]       # [0.4, 0.8]
-        charge_budget = 0.05 + 0.95 * a[3]  # [0.05, 1.0]
+        charge_budget = 0.05 + 0.35 * a[3]  # [0.05, 0.40]
 
          # enforce consistent ordering
         if high <= low + 0.10:
             high = low + 0.10
         target = float(np.clip(target, low + 0.05, high - 0.05))
-        
+
         reloc_params = {
             **self.base_reloc_params,
             "low": low,
