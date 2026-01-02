@@ -72,22 +72,36 @@ class Sim:
         lam_eff = lam_t * weather_fac
         if event_fac is not None:
             lam_eff = lam_eff * event_fac
-        A = self.rng.poisson(lam_eff)  # arrivals per station
-        # add to waiting queue
-        self.waiting += A
 
-        # vehicles available
-        can_serve = np.minimum(self.x, self.waiting)
-        self.waiting -= can_serve  # those get served
-        unmet = self.waiting  # people still waiting after service
+        A = self.rng.poisson(lam_eff)               # new arrivals per station
+        q0 = self.waiting.copy()                    # backlog before arrivals
+        x0 = self.x.copy()                          # vehicles available before service
 
-        demand_total = int(A.sum())
-        served_total = int(can_serve.sum())
-        # unmet requests *for this tick* (new arrivals that didn't start)
-        unmet_tick = int((A - can_serve).sum())
-        # queue length after service
+        self.waiting = q0 + A                       # total requests at station now
+        requests_total = int(self.waiting.sum())    # backlog + new arrivals
+
+        # Serve as many as possible from the queue (FIFO implied)
+        can_serve = np.minimum(x0, self.waiting)
+        self.waiting -= can_serve                   # remaining backlog after service
+
+        served_total = int(can_serve.sum())         # served from (backlog + new)
         queue_total = int(self.waiting.sum())
 
+        demand_total = int(A.sum())
+
+        # How many NEW arrivals got served immediately?
+        remaining_capacity = np.maximum(0, x0 - q0)     # capacity left after clearing backlog
+        served_new = np.minimum(A, remaining_capacity)
+        served_new_total = int(served_new.sum())
+
+        # Immediate-service availability (set to 1 if no arrivals)
+        availability = 1.0 if demand_total == 0 else (served_new_total / demand_total)
+
+        # Backlog ratio (not redundant with immediate availability)
+        queue_rate = queue_total / max(requests_total, 1)
+
+        # Unmet NEW arrivals this tick (arrivals that did not start immediately)
+        unmet_tick = demand_total - served_new_total
         # Average SoC at moment of departure (before decrement)
         avg_at_depart = np.zeros_like(self.s, dtype=float)
         mask_prior = self.x > 0
@@ -180,12 +194,15 @@ class Sim:
             {
                 "t_min": self.t,
                 # demand/service
+                "availability": float(availability),
+                "queue_rate": float(queue_rate),
+                "queue_total": queue_total,
+                "requests_total": requests_total,
                 "demand_total": demand_total,
                 "served_total": served_total,
-                "unmet": unmet_tick,
-                "queue_total": queue_total,
+                "served_new_total": served_new_total,
+                "unmet": int(unmet_tick),
                 # TODO: some description for the metrics below
-                "availability": float((self.x > 0).mean()),
                 "reloc_km": reloc_km,
                 "plugged": int(plan.sum()),
                 "charge_energy_kwh": energy_kwh,

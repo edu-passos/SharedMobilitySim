@@ -41,9 +41,10 @@ from sim.weather_mc import make_default_weather_mc as weather_mc
 class ScoreWeights:
     """Weights for per-tick cost components in reward calculation."""
 
-    alpha_unavailability: float = 100.0  # weight on (1 - availability)
+    alpha_unavailability: float = 50.0  # weight on (1 - availability)
     beta_reloc_km: float = 0.5  # weight on total relocation km (per tick)
     gamma_energy_cost: float = 10.0  # weight on charging cost € (per tick)
+    delta_queue: float = 10 # weight on total waiting queue (per tick)
 
 
 class PortoMicromobilityEnv:
@@ -64,18 +65,28 @@ class PortoMicromobilityEnv:
     ) -> None:
         self.cfg_path = Path(cfg_path)
         self.seed = int(seed)
-
+        
         with self.cfg_path.open(encoding="utf-8") as f:
             self._cfg = yaml.safe_load(f)
-
+        score_cfg = self._cfg.get("score", {})
         # Time horizon (in ticks)
         self.dt_min = int(self._cfg["time"]["dt_minutes"])
         horizon_h = int(self._cfg["time"]["horizon_hours"])
         self.episode_hours = episode_hours if episode_hours is not None else horizon_h
         self.max_steps = int(self.episode_hours * 60 / self.dt_min)
 
+        # Add weather and events state
+        self._last_weather_factor = 1.0
+        self._last_event_mean = 1.0
+        self._last_event_max = 1.0
+
         # Score weights (per-tick cost)
-        self.score_weights = score_weights or ScoreWeights()
+        self.score_weights = score_weights or ScoreWeights(
+        alpha_unavailability=float(score_cfg.get("alpha_unavailability", 50.0)),
+        beta_reloc_km=float(score_cfg.get("beta_reloc_km", 0.5)),
+        gamma_energy_cost=float(score_cfg.get("gamma_energy_cost", 10.0)),
+        delta_queue=float(score_cfg.get("delta_queue", 10.0)),
+)
 
         # Planners from YAML (default to greedy)
         ops_cfg = self._cfg.get("ops", {})
@@ -101,6 +112,7 @@ class PortoMicromobilityEnv:
         self.W = None
         self.events_matrix: np.ndarray | None = None
         self.step_idx: int = 0
+
 
     # -------------------- public API -------------------- #
 
@@ -141,9 +153,13 @@ class PortoMicromobilityEnv:
         self.base_lambda = np.full(N, float(cfg["demand"]["base_lambda_per_dt"]))
         self.P = np.full((N, N), 1.0 / N, dtype=float)  # uniform OD for now
 
-        # Weather & events
-        self.W = weather_mc(dt_min=self.dt_min, seed=int(cfg.get("seed", 42)))
-        self.events_matrix = events(self.max_steps, N, rng=self.sim.rng)
+        # Weather and events seeds
+        w_seed = int(self.rng.integers(1_000_000))
+        e_seed = int(self.rng.integers(1_000_000))
+
+        # Weather & events 
+        self.W = weather_mc(dt_min=self.dt_min, seed=w_seed)
+        self.events_matrix = events(self.max_steps, N, rng=np.random.default_rng(e_seed))
 
         self.step_idx = 0
         return self._build_obs()
@@ -172,6 +188,10 @@ class PortoMicromobilityEnv:
         ev_vec = self.events_matrix[self.step_idx]
 
         lam_t = effective_lambda(self.base_lambda, hour, weather_fac=w_fac, event_fac_vec=ev_vec)
+
+        self._last_weather_factor = float(w_fac)
+        self._last_event_mean = float(np.mean(ev_vec))
+        self._last_event_max = float(np.max(ev_vec))
 
         # 3) Compute plans using current state + params
         reloc_plan = self.reloc_planner(
@@ -232,9 +252,14 @@ class PortoMicromobilityEnv:
 
         low = 0.1 + 0.2 * a[0]  # [0.1, 0.3]
         high = 0.6 + 0.3 * a[1]  # [0.6, 0.9]
-        target = 0.4 + 0.4 * a[2]  # [0.4, 0.8]
-        q_thresh = 0.2 + 0.6 * a[3]  # [0.2, 0.8]
+        target = 0.4 + 0.4 * a[2]       # [0.4, 0.8]
+        charge_budget = 0.05 + 0.95 * a[3]  # [0.05, 1.0]
 
+         # enforce consistent ordering
+        if high <= low + 0.10:
+            high = low + 0.10
+        target = float(np.clip(target, low + 0.05, high - 0.05))
+        
         reloc_params = {
             **self.base_reloc_params,
             "low": low,
@@ -249,7 +274,7 @@ class PortoMicromobilityEnv:
 
         charge_params = {
             **self.base_charge_params,
-            "threshold_quantile": q_thresh,
+            "charge_budget_frac": charge_budget,
         }
 
         return reloc_params, charge_params
@@ -257,18 +282,20 @@ class PortoMicromobilityEnv:
     def _compute_reward(self, log: dict[str, Any]) -> float:
         """Per-tick reward: negative instantaneous cost.
 
-        J_t = α * (1 - availability) + β * reloc_km + γ * charge_cost_eur
+        J_t = α * (1 - availability) + β * reloc_km + γ * charge_cost_eur + δ * queue_total
         reward_t = -J_t
         """  # noqa: RUF002
         alpha = self.score_weights.alpha_unavailability
         beta = self.score_weights.beta_reloc_km
         gamma = self.score_weights.gamma_energy_cost
+        delta = self.score_weights.delta_queue
 
         availability = float(log.get("availability", 0.0))
         reloc_km = float(log.get("reloc_km", 0.0))
         charge_cost = float(log.get("charge_cost_eur", 0.0))
+        queue_rate = float(log.get("queue_rate", 0.0))
 
-        J_t = alpha * (1.0 - availability) + beta * reloc_km + gamma * charge_cost
+        J_t = alpha * (1.0 - availability) + beta * reloc_km + gamma * charge_cost + delta*queue_rate
         return -J_t
 
     def _build_obs(self) -> dict[str, np.ndarray]:
@@ -292,5 +319,7 @@ class PortoMicromobilityEnv:
             "fill_ratio": fill.copy(),  # shape (N,)
             "soc": self.sim.s.copy(),  # shape (N,)
             "waiting": waiting.astype(float).copy(),  # shape (N,)
-            "time_of_day": tod,  # shape (2,)
+            "time_of_day": tod,  # shape (2,),
+            "weather_factor": np.array([self._last_weather_factor], dtype=float), # shape (1,)
+            "event_stats": np.array([self._last_event_mean, self._last_event_max], dtype=float), # shape (2,)
         }

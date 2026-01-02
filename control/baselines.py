@@ -31,7 +31,8 @@ def plan_relocation_greedy(
     """
     x = np.asarray(x, dtype=float).copy()
     C = np.asarray(C, dtype=float)
-    N = x.size
+    target = np.clip(target, low + 0.05, high - 0.05)
+
 
     # indices that truly need/donate after hysteresis
     need = np.where(x < (low - hysteresis) * C)[0]
@@ -46,8 +47,8 @@ def plan_relocation_greedy(
         donors = sorted(have, key=lambda j: (travel_min[j, i] * (1.0 + distance_penalty)))
         for j in donors:
             # donor surplus above target; receiver gap up to target
-            surplus = x[j] - max(high * C[j], target * C[j])
-            gap = min(low * C[i], target * C[i]) - x[i]
+            surplus = x[j] - target * C[j]
+            gap = target * C[i] - x[i]
             k = int(max(0, np.floor(min(surplus, gap))))
             if k > 0:
                 plan.append((j, i, k))
@@ -57,7 +58,7 @@ def plan_relocation_greedy(
                     return plan
 
             # stop early if station i is no longer in need
-            if x[i] >= min(low * C[i], target * C[i]):
+            if x[i] >= target * C[i]:
                 break
     return plan
 
@@ -69,6 +70,7 @@ def plan_charging_greedy(
     chargers: np.ndarray,
     lam_t: np.ndarray,
     *,
+    charge_budget_frac: float = 1.0,
     threshold_quantile: float = 0.5,
     min_score: float | None = None,
 ) -> np.ndarray:
@@ -97,16 +99,32 @@ def plan_charging_greedy(
     lam_t = np.asarray(lam_t)
 
     score = lam_t * (1.0 - s)  # higher = more urgent
+    if min_score is not None:
+        score = np.where(score >= min_score, score, 0.0) 
 
-    # choose a threshold—either absolute (min_score) or quantile
-    thr = float(min_score) if min_score is not None else float(np.quantile(score, threshold_quantile))  # e.g., top half
+    cap = np.minimum(chargers, x).astype(int)
+    total_cap = int(cap.sum())
+    if total_cap == 0:
+        return np.zeros_like(x, dtype=int)
+    
+    # Budget = fraction of available charging capacity
+    budget = int(round(np.clip(charge_budget_frac, 0.0, 1.0) * total_cap))
+    if budget <= 0:
+        return np.zeros_like(x, dtype=int)
 
+    # Allocate plugs to stations by descending score
+    order = np.argsort(-score)
     plan = np.zeros_like(x, dtype=int)
-    hot = np.where(score >= thr)[0]
-    if hot.size:
-        plan[hot] = np.minimum(chargers[hot], x[hot]).astype(int)
-
-    # cold stations stay unplugged intentionally (to save energy)
+    remaining = budget
+    for i in order:
+        if remaining <= 0:
+            break
+        if score[i] <= 0:
+            break
+        take = min(int(cap[i]), remaining)
+        if take > 0:
+            plan[i] = take
+            remaining -= take
     return plan
 
 

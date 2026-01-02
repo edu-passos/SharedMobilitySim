@@ -277,16 +277,14 @@ energy:
     - 0.25
   battery_kwh_per_vehicle: 0.5
   energy_cost_per_kwh_eur: 0.2
-ops:
-  thresholds:
-    low: 0.2
-    high: 0.8
 
 score:
   # J_run = α * (1 - availability_avg)
   #       + β * relocation_km_total
   #       + γ * charging_cost_eur_total
-  alpha_unavailability: 100.0 # weight on 1 - availability_avg
+  #       + δ * total_waiting_queue
+  alpha_unavailability: 50.0 # weight on 1 - availability_avg
   beta_reloc_km: 0.5 # weight on relocation_km_total
   gamma_energy_cost: 10.0 # weight on charging_cost_eur_total
+  delta_queue: float = 10.0 # weight on total_waiting_queue
 seed: 42
