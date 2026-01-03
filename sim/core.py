@@ -92,8 +92,6 @@ class Sim:
         demand_total = int(A.sum())
 
         # ----- rentable stock: reserve plugged + enforce SoC feasibility -----
-        x_rentable0 = x0.copy()
-
         # Reserve vehicles that are going to be charged this tick (not rentable now)
         reserve_plugged = bool(getattr(self.cfg, "reserve_plugged", True))
 
@@ -122,11 +120,12 @@ class Sim:
         can_serve = np.minimum(x_rentable0, self.waiting)
         self.waiting -= can_serve
 
-        served_total = int(can_serve.sum())
-        queue_total = int(self.waiting.sum())
+        served_total = int(can_serve.sum())  # total served this tick
+        queue_total = int(self.waiting.sum())  # total backlog after service
 
         # How many NEW arrivals got served immediately?
-        # Capacity left for new after serving backlog, based on rentable stock
+        # Capacity left for new arrivals after serving backlog, based on rentable stock
+        # NOTE: This is where the FIFO order is enforced
         remaining_capacity = np.maximum(0, x_rentable0 - q0)
         served_new = np.minimum(A, remaining_capacity)
         served_new_total = int(served_new.sum())
@@ -140,17 +139,18 @@ class Sim:
         # Unmet NEW arrivals this tick
         unmet_tick = demand_total - served_new_total
 
+        # 2) Departures
         # Average SoC at moment of departure (BEFORE decrement), based on pre-service state (x0,m0)
-        avg_at_depart = np.zeros_like(self.s, dtype=float)
+        avg_soc_at_depart = np.zeros_like(self.s, dtype=float)
         mask0 = x0 > 0
-        avg_at_depart[mask0] = m0[mask0] / x0[mask0]
+        avg_soc_at_depart[mask0] = m0[mask0] / x0[mask0]
 
         # Remove departing vehicles + their SoC mass
         if can_serve.sum():
             self.x -= can_serve
-            self.m -= can_serve * avg_at_depart
+            self.m -= can_serve * avg_soc_at_depart
 
-        # 2) Spawn trips (schedule arrivals with s_depart carried)
+        # Spawn trips (schedule arrivals with s_depart carried)
         if can_serve.sum():
             for i, k in enumerate(can_serve):
                 if k <= 0:
@@ -158,7 +158,7 @@ class Sim:
                 dests = self.rng_route.choice(N, size=int(k), p=P_t[i])
                 tij = self.cfg.travel_min[i, dests].astype(int)
                 uses = np.clip(0.01 + 0.12 * (tij / 60.0), 0.0, 1.0)
-                s_dep = float(avg_at_depart[i])
+                s_dep = float(avg_soc_at_depart[i])
                 for tt, j, u in zip(tij, dests, uses):
                     heappush(self._trip_heap, (self.t + int(tt), int(j), float(u), s_dep))
 

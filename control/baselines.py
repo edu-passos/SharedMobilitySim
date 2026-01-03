@@ -87,7 +87,10 @@ def plan_charging_greedy(
         chargers: number of available chargers per station
         lam_t: expected demand rate per station this tick
         threshold_quantile: quantile for score threshold (e.g., 0.5 means top-50% stations get charged)
+        charge_budget_frac: fraction of total available charging capacity to use
         min_score: alternative absolute minimum score threshold (overrides quantile if set)
+        keep_min_rentable: minimum vehicles to keep rentable at each station
+        keep_frac_rentable: fraction of vehicles to keep rentable at each station
 
     Returns:
         Per-station number of vehicles to plug this tick.
