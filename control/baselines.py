@@ -33,7 +33,6 @@ def plan_relocation_greedy(
     C = np.asarray(C, dtype=float)
     target = np.clip(target, low + 0.05, high - 0.05)
 
-
     # indices that truly need/donate after hysteresis
     need = np.where(x < (low - hysteresis) * C)[0]
     have = np.where(x > (high + hysteresis) * C)[0]
@@ -73,7 +72,7 @@ def plan_charging_greedy(
     charge_budget_frac: float = 1.0,
     min_score: float | None = None,
     keep_min_rentable: int = 1,
-    keep_frac_rentable: float = 0.5
+    keep_frac_rentable: float = 0.5,
 ) -> np.ndarray:
     """Plan charging vehicles at stations based on expected demand and SoC.
 
@@ -101,13 +100,13 @@ def plan_charging_greedy(
 
     score = lam_t * (1.0 - s)  # higher = more urgent
     if min_score is not None:
-        score = np.where(score >= min_score, score, 0.0) 
+        score = np.where(score >= min_score, score, 0.0)
 
     cap = np.minimum(chargers, x).astype(int)
     total_cap = int(cap.sum())
     if total_cap == 0:
         return np.zeros_like(x, dtype=int)
-    
+
     # Budget = fraction of available charging capacity
     budget = int(round(np.clip(charge_budget_frac, 0.0, 1.0) * total_cap))
     if budget <= 0:

@@ -21,8 +21,8 @@ class SimConfig:
     charge_rate: np.ndarray  # (N,) SoC/hour when plugged (e.g. 0.25 => +25%/h)
     battery_kwh: float  # kWh per vehicle @ 100% SoC
     energy_cost_per_kwh: float  # €/kWh
-    soc_min_depart: float = 0.00     # min SoC needed for a rental to start
-    reserve_plugged: bool = True    # vehicles plugged this tick are not rentable
+    soc_min_depart: float = 0.00  # min SoC needed for a rental to start
+    reserve_plugged: bool = True  # vehicles plugged this tick are not rentable
 
 
 class Sim:
@@ -37,7 +37,7 @@ class Sim:
         # Split RNG into two independent streams deterministically
         seed_root = rng.integers(0, 2**32 - 1, dtype=np.uint32).item()
         self.rng_demand = np.random.default_rng(seed_root + 1)
-        self.rng_route  = np.random.default_rng(seed_root + 2)
+        self.rng_route = np.random.default_rng(seed_root + 2)
 
         N = cfg.capacity.shape[0]
         assert cfg.travel_min.shape == (N, N), "travel_min must be NxN"
@@ -81,10 +81,10 @@ class Sim:
         if event_fac is not None:
             lam_eff = lam_eff * event_fac
 
-        A = self.rng_demand.poisson(lam_eff)     # new arrivals per station
-        q0 = self.waiting.copy()                 # backlog before arrivals
-        x0 = self.x.copy()                       # physical stock before service
-        m0 = self.m.copy()                       # SoC mass before service
+        A = self.rng_demand.poisson(lam_eff)  # new arrivals per station
+        q0 = self.waiting.copy()  # backlog before arrivals
+        x0 = self.x.copy()  # physical stock before service
+        m0 = self.m.copy()  # SoC mass before service
 
         # total requests at station now
         self.waiting = q0 + A
@@ -117,8 +117,6 @@ class Sim:
 
         x_total_pre = int(x0.sum())
         x_rentable_total_pre = int(x_rentable0.sum())
-
-
 
         # Serve as many as possible from the queue (FIFO implied), limited by rentable stock
         can_serve = np.minimum(x_rentable0, self.waiting)
@@ -200,7 +198,7 @@ class Sim:
         self.m = np.minimum(self.m, self.x.astype(float) * 1.0)
 
         energy_kwh = float(np.sum(plan_exec * self.cfg.battery_kwh * delta_soc))
-        charge_cost = energy_kwh * self.cfg.energy_cost_per_kwh * 100 # cents
+        charge_cost = energy_kwh * self.cfg.energy_cost_per_kwh * 100  # cents
         soc_mean_vehicles = float(self.m.sum() / max(self.x.sum(), 1))
 
         # 5) Apply relocation plan (move both count and mass)
@@ -242,61 +240,51 @@ class Sim:
         soc_station_min = float(soc_station[mask_post].min()) if np.any(mask_post) else 0.0
         soc_station_p10 = float(np.percentile(soc_station[mask_post], 10)) if np.any(mask_post) else 0.0
 
-        self.logs.append({
-            "t_min": self.t,
-
-            # demand/service
-            "availability": float(availability),
-            "queue_rate": float(queue_rate),
-            "queue_total": queue_total,
-            "requests_total": requests_total,
-            "demand_total": demand_total,
-            "served_total": served_total,
-            "served_new_total": served_new_total,
-            "unmet": int(unmet_tick),
-
-            # rentability primitives
-            "x_total_pre": x_total_pre,
-            "x_rentable_total_pre": x_rentable_total_pre,
-            "rentable_frac": rentable_frac,
-            "soc_bind_frac": soc_bind_frac,
-
-            # operations
-            "reloc_km": float(reloc_km),
-            "reloc_units": int(reloc_units),
-            "reloc_edges": int(reloc_edges),
-
-            "plugged_reserve": int(plan_reserve.sum()),
-            "plugged": int(plan_exec.sum()),  # executed
-            "charge_energy_kwh": float(energy_kwh),
-            "charge_cost_eur": float(charge_cost),
-            "overflow_dropped": int(overflow_dropped),
-
-
-            # SoC
-            "soc_mean": float(np.mean(self.s)),
-            "soc_mean_vehicles": float(soc_mean_vehicles),
-            "soc_station_min": soc_station_min,
-            "soc_station_p10": soc_station_p10,
-
-            # fill distribution
-            "fill_p10": fill_p10,
-            "fill_p90": fill_p90,
-
-            # system state
-            "full_ratio": float(np.mean(self.x == self.cfg.capacity)),
-            "empty_ratio": float(np.mean(self.x == 0)),
-            "stock_std": float(np.std(self.x)),
-
-            # overflow/charging util
-            "overflow_rerouted": int(overflow_rerouted),
-            "overflow_extra_min": float(overflow_extra_min),
-            "charge_utilization": float(charge_utilization),
-        })
+        self.logs.append(
+            {
+                "t_min": self.t,
+                # demand/service
+                "availability": float(availability),
+                "queue_rate": float(queue_rate),
+                "queue_total": queue_total,
+                "requests_total": requests_total,
+                "demand_total": demand_total,
+                "served_total": served_total,
+                "served_new_total": served_new_total,
+                "unmet": int(unmet_tick),
+                # rentability primitives
+                "x_total_pre": x_total_pre,
+                "x_rentable_total_pre": x_rentable_total_pre,
+                "rentable_frac": rentable_frac,
+                "soc_bind_frac": soc_bind_frac,
+                # operations
+                "reloc_km": float(reloc_km),
+                "reloc_units": int(reloc_units),
+                "reloc_edges": int(reloc_edges),
+                "plugged_reserve": int(plan_reserve.sum()),
+                "plugged": int(plan_exec.sum()),  # executed
+                "charge_energy_kwh": float(energy_kwh),
+                "charge_cost_eur": float(charge_cost),
+                "overflow_dropped": int(overflow_dropped),
+                # SoC
+                "soc_mean": float(np.mean(self.s)),
+                "soc_mean_vehicles": float(soc_mean_vehicles),
+                "soc_station_min": soc_station_min,
+                "soc_station_p10": soc_station_p10,
+                # fill distribution
+                "fill_p10": fill_p10,
+                "fill_p90": fill_p90,
+                # system state
+                "full_ratio": float(np.mean(self.x == self.cfg.capacity)),
+                "empty_ratio": float(np.mean(self.x == 0)),
+                "stock_std": float(np.std(self.x)),
+                # overflow/charging util
+                "overflow_rerouted": int(overflow_rerouted),
+                "overflow_extra_min": float(overflow_extra_min),
+                "charge_utilization": float(charge_utilization),
+            }
+        )
         self.t = t_next
-
-        
-
 
     # ------------------------- helpers -------------------------
 

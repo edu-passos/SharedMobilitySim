@@ -5,9 +5,8 @@ import numpy as np
 
 from envs.porto_env import PortoMicromobilityEnv
 
-
-
 # Multi-Armed Bandit (UCB1)
+
 
 class UCB1Bandit:
     """UCB1 bandit over a discrete set of continuous action vectors (arms).
@@ -58,7 +57,7 @@ class UCB1Bandit:
             return 0
         masked = np.where(tried, self.means, -np.inf)
         return self._argmax_random_tie(masked)
-    
+
     def _argmax_random_tie(self, x: np.ndarray) -> int:
         m = np.max(x)
         idx = np.flatnonzero(np.isclose(x, m))
@@ -91,8 +90,8 @@ class MultiArmedBanditAgent:
         self._action = None
 
 
-
 # Arm construction
+
 
 def _repair_action(a: np.ndarray) -> np.ndarray:
     """Only clip to [0,1]. Env already enforces low/high/target consistency."""
@@ -135,8 +134,8 @@ def make_arm_set(
     return repaired
 
 
-
 # KPI aggregation
+
 
 def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> dict[str, float]:
     sim = env.sim
@@ -263,10 +262,9 @@ def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> dic
     J_charge = 0.0
 
     d0 = arr("demand_total")
-    a  = arr("availability")
+    a = arr("availability")
     demand0_ticks = int((d0 == 0).sum())
     availability_on_d0_mean = float(a[d0 == 0].mean()) if demand0_ticks > 0 else None
-
 
     for r in logs:
         a = float(r["availability"])
@@ -275,9 +273,9 @@ def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> dic
         qr = float(r["queue_rate"])
 
         J_unavail += w.alpha_unavailability * (1.0 - a)
-        J_reloc   += w.beta_reloc_km * rk
-        J_charge  += w.gamma_energy_cost * cc
-        J_queue   += w.delta_queue * qr
+        J_reloc += w.beta_reloc_km * rk
+        J_charge += w.gamma_energy_cost * cc
+        J_queue += w.delta_queue * qr
 
     J_sum = J_unavail + J_reloc + J_charge + J_queue
 
@@ -349,7 +347,6 @@ def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> dic
         "ticks": T,
         "availability_on_d0_mean": availability_on_d0_mean,
         "demand0_ticks": demand0_ticks,
-        
     }
 
 
@@ -368,7 +365,6 @@ def main():
     parser.add_argument("--arms_seed", type=int, default=0, help="Seed for arm generation.")
     parser.add_argument("--ucb_c", type=float, default=2.0, help="UCB exploration coefficient.")
     args = parser.parse_args()
-    
 
     # Build discrete arm set (each arm is a 4D action vector in [0,1])
     arms = make_arm_set(k_random=args.arms_random, seed=args.arms_seed, include_baselines=True)
@@ -390,7 +386,7 @@ def main():
         total_reward = 0.0
 
         chosen_action = agent.begin_episode()
-        chosen_arm_idx = int(agent.last_arm_idx) 
+        chosen_arm_idx = int(agent.last_arm_idx)
 
         while not done:
             action = agent.act(obs)
