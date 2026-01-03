@@ -81,7 +81,7 @@ class Sim:
         if event_fac is not None:
             lam_eff = lam_eff * event_fac
 
-        A = self.rng_demand.poisson(lam_eff)            # new arrivals per station
+        A = self.rng_demand.poisson(lam_eff)     # new arrivals per station
         q0 = self.waiting.copy()                 # backlog before arrivals
         x0 = self.x.copy()                       # physical stock before service
         m0 = self.m.copy()                       # SoC mass before service
@@ -200,7 +200,7 @@ class Sim:
         self.m = np.minimum(self.m, self.x.astype(float) * 1.0)
 
         energy_kwh = float(np.sum(plan_exec * self.cfg.battery_kwh * delta_soc))
-        charge_cost = energy_kwh * self.cfg.energy_cost_per_kwh
+        charge_cost = energy_kwh * self.cfg.energy_cost_per_kwh * 100 # cents
         soc_mean_vehicles = float(self.m.sum() / max(self.x.sum(), 1))
 
         # 5) Apply relocation plan (move both count and mass)

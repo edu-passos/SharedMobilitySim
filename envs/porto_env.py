@@ -41,10 +41,10 @@ from sim.weather_mc import make_default_weather_mc as weather_mc
 class ScoreWeights:
     """Weights for per-tick cost components in reward calculation."""
 
-    alpha_unavailability: float = 50.0  # weight on (1 - availability)
-    beta_reloc_km: float = 0.5  # weight on total relocation km (per tick)
-    gamma_energy_cost: float = 10.0  # weight on charging cost € (per tick)
-    delta_queue: float = 10.0 # weight on total waiting queue (per tick)
+    alpha_unavailability: float  # weight on (1 - availability)
+    beta_reloc_km: float # weight on total relocation km (per tick)
+    gamma_energy_cost: float # weight on charging cost € (per tick)
+    delta_queue: float # weight on queue rate (per tick)
 
 
 class PortoMicromobilityEnv:
