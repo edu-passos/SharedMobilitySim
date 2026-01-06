@@ -343,7 +343,14 @@ class PortoMicromobilityEnv:
         Simple version: per-station x, SoC, waiting queue + time-of-day encoding.
         """
         assert self.sim is not None
-        N = self.sim.x.shape[0]
+        # last tick KPI scalars (0 if no logs yet)
+        last = self.sim.logs[-1] if getattr(self.sim, "logs", None) else {}
+        last_reloc_km = float(last.get("reloc_km", 0.0))
+        last_reloc_units = float(last.get("reloc_units", 0.0))  # if you log it; else stays 0
+        last_charge_cost = float(last.get("charge_cost_eur", 0.0))
+        last_queue_total = float(last.get("queue_total", 0.0))
+        last_queue_rate = float(last.get("queue_rate", 0.0))
+
 
         # time-of-day features
         hour = (self.step_idx * self.dt_min / 60.0) % 24
@@ -361,4 +368,12 @@ class PortoMicromobilityEnv:
             "time_of_day": tod,  # shape (2,),
             "weather_factor": np.array([self._last_weather_factor], dtype=float),  # shape (1,)
             "event_stats": np.array([self._last_event_mean, self._last_event_max], dtype=float),  # shape (2,)
+            "last_kpi": np.array([
+                last_reloc_km,
+                last_reloc_units,
+                last_charge_cost,
+                last_queue_total,
+                last_queue_rate,
+            ], dtype=float
+             ), # shape (5,),
         }

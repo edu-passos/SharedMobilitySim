@@ -2,7 +2,7 @@
 eval_heuristic_agent.py
 
 Evaluate a real-time (tick-by-tick) adaptive heuristic agent on PortoMicromobilityEnv,
-using the SAME normalized objective decomposition as eval_policies.py:
+using the same normalized objective decomposition as eval_policies.py:
 
     J_t = wA * (unavailability / A0)
         + wR * (reloc_km / R0)
@@ -14,10 +14,6 @@ This script:
 - Optionally applies scenarios (baseline / hotspot_od / hetero_lambda / event_heavy)
 - Outputs a per-seed episode table + aggregate mean±std
 - Saves JSON to --out (same schema style as eval_policies.py: episodes + summary)
-
-NOTE:
-- We do NOT override score weights here; we trust env.score_cfg (loaded from YAML config).
-- The agent outputs action ∈ [0,1]^4 each tick; env maps it to planner params internally.
 """
 
 from __future__ import annotations
@@ -33,9 +29,7 @@ import numpy as np
 from envs.porto_env import PortoMicromobilityEnv
 
 
-# -----------------------------
-# Scenario application (copy of your eval_policies.py)
-# -----------------------------
+# Scenario application
 def apply_scenario(
     env: PortoMicromobilityEnv,
     *,
@@ -87,25 +81,52 @@ def apply_scenario(
     raise ValueError(f"Unknown scenario '{scenario}'. Use: baseline, hotspot_od, hetero_lambda, event_heavy.")
 
 
-# -----------------------------
-# Heuristic agent (your logic; unchanged except minor safety)
-# -----------------------------
 class HeuristicAgent:
-    """Tick-level adaptive heuristic policy producing action ∈ [0,1]^4."""
+    """
+    Tick-level heuristic with feedback control:
+    - uses queue_rate for demand pressure
+    - throttles relocation using EWMA of last reloc_km
+    - charges based on SoC tail (p10) rather than mean
+    """
+    # EWMA state
+    ewma_reloc_km: float = 0.0
+    ewma_queue_rate: float = 0.0
+    initialized: bool = False
+
+    # EWMA smoothing (higher -> faster response)
+    alpha: float = 0.15
+
+    # Relocation targets (interpreted in km/tick, relative)
+    # You should tune these after 1–2 quick sweeps.
+    reloc_km_target_base: float = 4.0     # baseline “sweet spot” per tick scale proxy
+    reloc_km_target_event: float = 20.0   # allow more during events/hotspots
+
+    def reset(self) -> None:
+        self.ewma_reloc_km = 0.0
+        self.ewma_queue_rate = 0.0
+        self.initialized = False
 
     def act(self, obs: Dict[str, np.ndarray]) -> np.ndarray:
-        fill = np.asarray(obs["fill_ratio"], dtype=float)  # (N,)
-        soc = np.asarray(obs["soc"], dtype=float)          # (N,)
-        waiting = np.asarray(obs["waiting"], dtype=float)  # (N,)
-        tod = np.asarray(obs["time_of_day"], dtype=float)  # (2,)
+        fill = np.asarray(obs["fill_ratio"], dtype=float)   # (N,)
+        soc = np.asarray(obs["soc"], dtype=float)           # (N,)
+        waiting = np.asarray(obs["waiting"], dtype=float)   # (N,)
+        tod = np.asarray(obs["time_of_day"], dtype=float)   # (2,)
 
-        avg_fill = float(np.mean(fill))
-        empty_frac = float(np.mean(fill < 0.1))
-        full_frac = float(np.mean(fill > 0.9))
+        # optional extra signals
+        event_max = float(obs.get("event_stats", np.array([1.0, 1.0]))[1])
+        last_kpi = np.asarray(obs.get("last_kpi", np.zeros(5)), dtype=float)
+        last_reloc_km = float(last_kpi[0])
+        last_queue_rate = float(last_kpi[4])
 
-        avg_soc = float(np.mean(soc))
-        avg_wait = float(np.mean(waiting))
-        high_wait_frac = float(np.mean(waiting > 5))
+        # Update EWMAs
+        if not self.initialized:
+            self.ewma_reloc_km = last_reloc_km
+            self.ewma_queue_rate = last_queue_rate
+            self.initialized = True
+        else:
+            a = float(self.alpha)
+            self.ewma_reloc_km = (1 - a) * self.ewma_reloc_km + a * last_reloc_km
+            self.ewma_queue_rate = (1 - a) * self.ewma_queue_rate + a * last_queue_rate
 
         # Decode hour from [sin, cos]
         sin_h, cos_h = float(tod[0]), float(tod[1])
@@ -118,39 +139,76 @@ class HeuristicAgent:
         is_evening_peak = 17 <= hour <= 20
         is_night = (0 <= hour <= 5) or (hour >= 23)
 
-        # a0: low threshold control (higher => more needy stations => more relocation)
-        base_a0 = 0.4 if (is_morning_peak or is_evening_peak) else 0.2
-        pressure = 0.5 * high_wait_frac + 0.5 * empty_frac
-        a0 = float(np.clip(base_a0 + pressure, 0.0, 1.0))
+        # -----------------------------
+        # Core state summaries
+        # -----------------------------
+        empty_frac = float(np.mean(fill < 0.1))
+        full_frac = float(np.mean(fill > 0.9))
 
-        # a1: high threshold control (lower => more donors => more relocation)
-        if is_morning_peak or is_evening_peak:
-            base_a1 = 0.2
-        elif is_night:
-            base_a1 = 0.7
-        else:
-            base_a1 = 0.4
-        congestion = full_frac
-        a1 = float(np.clip(base_a1 - 0.5 * congestion, 0.0, 1.0))
+        # waiting distribution (more robust than avg)
+        high_wait_frac = float(np.mean(waiting > 5))
+        very_high_wait_frac = float(np.mean(waiting > 10))
 
-        # a2: target fill control (raise target under high demand)
-        wait_scale = float(np.clip(avg_wait / 20.0, 0.0, 1.0))
-        a2 = float(np.clip(0.3 + 0.7 * wait_scale, 0.0, 1.0))
+        soc_mean = float(np.mean(soc))
+        soc_p10 = float(np.percentile(soc, 10))
 
-        # a3: charging control (higher when SoC low or demand pressure high; force higher at night)
-        demand_pressure = (avg_wait / 10.0) + high_wait_frac
-        soc_lack = 1.0 - avg_soc
-        drive = float(np.clip(0.5 * soc_lack + 0.5 * demand_pressure, 0.0, 1.0))
+        # Pressure based on queue_rate EWMA (faster) + local waiting tail
+        # Scale queue_rate into [0,1] using a soft normalization; tune denominator if needed.
+        qrate_scale = float(np.clip(self.ewma_queue_rate / 3.0, 0.0, 1.0))
+        pressure = np.clip(0.45 * qrate_scale + 0.35 * high_wait_frac + 0.20 * empty_frac, 0.0, 1.0)
+
+        # -----------------------------
+        # Relocation throttle
+        # -----------------------------
+        # If event_max is high, allow more relocation.
+        # event_max ≈ 1.0 normally, >1 during events.
+        event_strength = float(np.clip((event_max - 1.0) / 1.0, 0.0, 1.0))  # map ~[1..2] -> [0..1]
+        reloc_target = (1 - event_strength) * self.reloc_km_target_base + event_strength * self.reloc_km_target_event
+
+        # throttle in [0,1]: 0 = no throttle, 1 = strong throttle
+        # If ewma_reloc_km exceeds target, throttle rises.
+        throttle = float(np.clip((self.ewma_reloc_km - reloc_target) / max(reloc_target, 1e-6), 0.0, 1.0))
+
+        # -----------------------------
+        # Map to action components [a0,a1,a2,a3] in [0,1]
+        # Recall env mapping:
+        # low = 0.1 + 0.2*a0 (higher -> more needy -> more reloc)
+        # high = 0.6 + 0.3*a1 (higher -> fewer donors -> less reloc)
+        # target = 0.4 + 0.4*a2
+        # charge_budget = 0.05 + 0.35*a3
+        # -----------------------------
+
+        # a0 (low threshold) — raise with pressure, but *decrease* under throttle
+        base_a0 = 0.35 if (is_morning_peak or is_evening_peak) else 0.18
+        a0 = base_a0 + 0.75 * pressure - 0.70 * throttle
+        # extra safety: if lots of full stations, don't mark too many as needy (prevents churn)
+        a0 -= 0.20 * full_frac
+        a0 = float(np.clip(a0, 0.0, 1.0))
+
+        # a1 (high threshold) — higher => stricter donors => less reloc; increase under throttle
+        base_a1 = 0.20 if (is_morning_peak or is_evening_peak) else (0.70 if is_night else 0.45)
+        a1 = base_a1 + 0.70 * throttle - 0.30 * pressure
+        # if system is very full, relax donors slightly to alleviate overflow
+        a1 -= 0.25 * full_frac
+        a1 = float(np.clip(a1, 0.0, 1.0))
+
+        # a2 (target fill) — increase when pressure is high; decrease when throttled (reduces reloc need)
+        a2 = 0.25 + 0.85 * pressure - 0.25 * throttle
+        if not (is_morning_peak or is_evening_peak):
+            a2 -= 0.10
+        a2 = float(np.clip(a2, 0.0, 1.0))
+
+        # a3 (charging) — depend on SoC tail + pressure; boost at night
+        soc_lack_tail = float(np.clip(0.35 - soc_p10, 0.0, 0.35) / 0.35)  # soc_p10 below 0.35 -> higher
+        drive = 0.55 * soc_lack_tail + 0.45 * np.clip(0.5 * pressure + 0.5 * very_high_wait_frac, 0.0, 1.0)
         if is_night:
-            drive = max(drive, 0.7)
+            drive = max(drive, 0.75)
         a3 = float(np.clip(drive, 0.0, 1.0))
 
         return np.array([a0, a1, a2, a3], dtype=float)
 
 
-# -----------------------------
-# KPIs: normalized objective recompute (aligned with eval_policies.py)
-# -----------------------------
+# KPIs: normalized objective recompute
 def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> Dict[str, Any]:
     sim = env.sim
     if sim is None or not sim.logs:
@@ -259,6 +317,8 @@ def run_one_episode(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     env = PortoMicromobilityEnv(cfg_path=cfg_path, episode_hours=hours, seed=seed)
     obs = env.reset()
+    if hasattr(agent, "reset"):
+        agent.reset()
 
     apply_scenario(env, scenario=scenario, seed=seed, **(scenario_params or {}))
 
