@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from envs.porto_env import PortoMicromobilityEnv
-
+from sim.kpis import compute_episode_kpis
 
 # Scenario application
 def apply_scenario(
@@ -208,104 +208,6 @@ class HeuristicAgent:
         return np.array([a0, a1, a2, a3], dtype=float)
 
 
-# KPIs: normalized objective recompute
-def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> Dict[str, Any]:
-    sim = env.sim
-    if sim is None or not sim.logs:
-        return {}
-
-    logs = sim.logs
-    T = len(logs)
-    dt_min = sim.cfg.dt_min
-    scfg = env.score_cfg
-
-    def arr(key: str, default: float = 0.0) -> np.ndarray:
-        return np.array([r.get(key, default) for r in logs], dtype=float)
-
-    # service
-    demand_total = int(arr("demand_total").sum())
-    served_total = int(arr("served_total").sum())
-    served_new_total = int(arr("served_new_total").sum())
-    unmet_total = int(arr("unmet").sum())
-
-    availability_demand_weighted = 1.0 if demand_total == 0 else (served_new_total / demand_total)
-    unmet_rate = 0.0 if demand_total == 0 else (unmet_total / demand_total)
-    availability_tick_avg = float(arr("availability").mean())
-
-    # queue
-    queue_total = arr("queue_total")
-    queue_rate = arr("queue_rate")
-
-    total_queue_time_min = float(queue_total.sum() * dt_min)
-    avg_wait_min_proxy = float(total_queue_time_min / max(served_total, 1))
-
-    queue_total_p95 = float(np.percentile(queue_total, 95)) if T else 0.0
-    queue_rate_p95 = float(np.percentile(queue_rate, 95)) if T else 0.0
-
-    if T > 1:
-        dq = queue_total[1:] - queue_total[:-1]
-        queue_delta_mean = float(np.mean(dq))
-        queue_delta_p95 = float(np.percentile(dq, 95))
-    else:
-        queue_delta_mean = 0.0
-        queue_delta_p95 = 0.0
-
-    # ops
-    reloc_km_total = float(arr("reloc_km").sum())
-    charge_cost_eur_total = float(arr("charge_cost_eur").sum())
-    charge_energy_kwh_total = float(arr("charge_energy_kwh").sum())
-    charge_util_avg = float(arr("charge_utilization").mean())
-
-    # normalized objective decomposition
-    unavailability = 1.0 - arr("availability")
-
-    A0 = max(float(scfg.A0_unavailability), float(scfg.eps))
-    R0 = max(float(scfg.R0_reloc_km), float(scfg.eps))
-    C0 = max(float(scfg.C0_charge_cost_eur), float(scfg.eps))
-    Q0 = max(float(scfg.Q0_queue_total), float(scfg.eps))
-
-    J_avail = float(scfg.w_availability) * (unavailability / A0)
-    J_reloc = float(scfg.w_reloc) * (arr("reloc_km") / R0)
-    J_charge = float(scfg.w_charge) * (arr("charge_cost_eur") / C0)
-    J_queue = float(scfg.w_queue) * (queue_total / Q0)
-
-    J_t = J_avail + J_reloc + J_charge + J_queue
-    J_run = float(np.mean(J_t))
-
-    reward_plus_sumJ = float(total_reward + float(np.sum(J_t)))
-
-    return {
-        "ticks": int(T),
-        "total_reward": float(total_reward),
-        "J_run": float(J_run),
-        "reward_plus_sumJ": float(reward_plus_sumJ),
-        "J_avail_run": float(np.mean(J_avail)),
-        "J_reloc_run": float(np.mean(J_reloc)),
-        "J_charge_run": float(np.mean(J_charge)),
-        "J_queue_run": float(np.mean(J_queue)),
-        # service
-        "availability_tick_avg": float(availability_tick_avg),
-        "availability_demand_weighted": float(availability_demand_weighted),
-        "unmet_total": int(unmet_total),
-        "unmet_rate": float(unmet_rate),
-        "avg_wait_min_proxy": float(avg_wait_min_proxy),
-        # queue
-        "queue_total_avg": float(queue_total.mean()) if T else 0.0,
-        "queue_total_p95": float(queue_total_p95),
-        "queue_rate_avg": float(queue_rate.mean()) if T else 0.0,
-        "queue_rate_p95": float(queue_rate_p95),
-        "queue_delta_mean": float(queue_delta_mean),
-        "queue_delta_p95": float(queue_delta_p95),
-        # ops
-        "relocation_km_total": float(reloc_km_total),
-        "charging_cost_eur_total": float(charge_cost_eur_total),
-        "charging_energy_kwh_total": float(charge_energy_kwh_total),
-        "charge_utilization_avg": float(charge_util_avg),
-        # snapshot (debug)
-        "score_cfg": asdict(env.score_cfg),
-    }
-
-
 def run_one_episode(
     *,
     cfg_path: str,
@@ -398,8 +300,8 @@ def main() -> None:
         "avg_wait_min_proxy",
         "queue_total_p95",
         "queue_rate_p95",
-        "queue_delta_mean",
-        "queue_delta_p95",
+        "dq_mean",
+        "dq_p95",
         "relocation_km_total",
         "charging_cost_eur_total",
         "charge_utilization_avg",
@@ -447,8 +349,8 @@ def main() -> None:
     print("\n--- Queue stability (Δqueue) ---")
     print(
         f"- heuristic: "
-        f"dq_mean={s['queue_delta_mean']['mean']:.3f}, "
-        f"dq_p95={s['queue_delta_p95']['mean']:.3f}"
+        f"dq_mean={s['dq_mean']['mean']:.3f}, "
+        f"dq_p95={s['dq_p95']['mean']:.3f}"
     )
     print(f"\nSaved: {args.out}")
 

@@ -418,7 +418,7 @@ def main() -> None:
                 # (see patch below).
                 params_override = {
                     "reloc": {"km_budget": float(km)},
-                    "charge": {"charge_budget_frac_override": float(cf)},
+                    "charge": {"charge_budget_frac": float(cf)}
                 }
                 policies.append(
                     {

@@ -38,7 +38,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from envs.porto_env import PortoMicromobilityEnv
-
+from sim.kpis import compute_episode_kpis
 
 # Bandit: UCB1
 class UCB1Bandit:
@@ -153,88 +153,6 @@ def apply_scenario(
 
     raise ValueError(f"Unknown scenario '{scenario}'. Use: baseline, hotspot_od, hetero_lambda, event_heavy.")
 
-def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> Dict[str, Any]:
-    sim = env.sim
-    if sim is None or not sim.logs:
-        return {}
-
-    logs = sim.logs
-    T = len(logs)
-    dt_min = sim.cfg.dt_min
-    scfg = env.score_cfg  # ScoreConfig dataclass
-
-    availability = _arr(logs, "availability", 0.0)
-    unavailability = 1.0 - availability
-
-    reloc_km = _arr(logs, "reloc_km", 0.0)
-    charge_cost = _arr(logs, "charge_cost_eur", 0.0)
-    queue_total = _arr(logs, "queue_total", 0.0)
-
-    # Volumes / service
-    demand_total = int(_arr(logs, "demand_total", 0.0).sum())
-    served_new_total = int(_arr(logs, "served_new_total", 0.0).sum())
-    served_total = int(_arr(logs, "served_total", 0.0).sum())
-    unmet_total = int(_arr(logs, "unmet", 0.0).sum())
-
-    availability_demand_weighted = 1.0 if demand_total == 0 else (served_new_total / demand_total)
-    unmet_rate = 0.0 if demand_total == 0 else (unmet_total / demand_total)
-    availability_tick_avg = float(np.mean(availability))
-
-    # Queue / wait proxy
-    total_queue_time_min = float(queue_total.sum() * dt_min)
-    avg_wait_min_proxy = float(total_queue_time_min / max(served_total, 1))
-    queue_total_p95 = float(np.percentile(queue_total, 95)) if T else 0.0
-
-    # Queue stability: Δqueue_total
-    dq = np.diff(queue_total, prepend=queue_total[0])
-    dq_mean = float(np.mean(dq)) if T else 0.0
-    dq_p95 = float(np.percentile(dq, 95)) if T else 0.0
-
-    # Normalized objective recompute (must match env reward)
-    A0 = max(float(scfg.A0_unavailability), float(scfg.eps))
-    R0 = max(float(scfg.R0_reloc_km), float(scfg.eps))
-    C0 = max(float(scfg.C0_charge_cost_eur), float(scfg.eps))
-    Q0 = max(float(scfg.Q0_queue_total), float(scfg.eps))
-
-    J_avail_t = float(scfg.w_availability) * (unavailability / A0)
-    J_reloc_t = float(scfg.w_reloc) * (reloc_km / R0)
-    J_charge_t = float(scfg.w_charge) * (charge_cost / C0)
-    J_queue_t = float(scfg.w_queue) * (queue_total / Q0)
-
-    J_t = J_avail_t + J_reloc_t + J_charge_t + J_queue_t
-    J_run = float(np.mean(J_t)) if T else 0.0
-
-    # Consistency: reward ≈ -sum(J_t)
-    reward_plus_sumJ = float(total_reward + float(np.sum(J_t)))
-
-    return {
-        "ticks": int(T),
-        "total_reward": float(total_reward),
-        "J_run": float(J_run),
-        "reward_plus_sumJ": float(reward_plus_sumJ),
-        # Decomposition (per-tick means)
-        "J_avail": float(np.mean(J_avail_t)) if T else 0.0,
-        "J_reloc": float(np.mean(J_reloc_t)) if T else 0.0,
-        "J_charge": float(np.mean(J_charge_t)) if T else 0.0,
-        "J_queue": float(np.mean(J_queue_t)) if T else 0.0,
-        # Service
-        "availability_tick_avg": float(availability_tick_avg),
-        "availability_demand_weighted": float(availability_demand_weighted),
-        "unmet_rate": float(unmet_rate),
-        "unmet_total": int(unmet_total),
-        "avg_wait_min_proxy": float(avg_wait_min_proxy),
-        # Ops
-        "relocation_km_total": float(reloc_km.sum()),
-        "charging_cost_eur_total": float(charge_cost.sum()),
-        # Queue
-        "queue_total_avg": float(queue_total.mean()) if T else 0.0,
-        "queue_total_p95": float(queue_total_p95),
-        # Stability
-        "dq_mean": float(dq_mean),
-        "dq_p95": float(dq_p95),
-        # Snapshot
-        "score_cfg": asdict(env.score_cfg),
-    }
 
 
 # Episode runner with param overrides
