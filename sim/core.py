@@ -198,7 +198,9 @@ class Sim:
         self.m = np.minimum(self.m, self.x.astype(float) * 1.0)
 
         energy_kwh = float(np.sum(plan_exec * self.cfg.battery_kwh * delta_soc))
-        charge_cost = energy_kwh * self.cfg.energy_cost_per_kwh * 100  # cents
+        charge_cost = energy_kwh * self.cfg.energy_cost_per_kwh # euros
+        assert energy_kwh >= -1e-12
+        assert charge_cost >= -1e-12
         soc_mean_vehicles = float(self.m.sum() / max(self.x.sum(), 1))
 
         # 5) Apply relocation plan (move both count and mass)

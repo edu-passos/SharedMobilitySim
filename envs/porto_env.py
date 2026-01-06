@@ -1,6 +1,6 @@
 """PortoMicromobilityEnv: simple API for agents.
 
-You ONLY need these two methods:
+You need these two methods:
 
     env = PortoMicromobilityEnv("configs/network_prtp_10.yaml")
     obs = env.reset()
@@ -38,13 +38,20 @@ from sim.weather_mc import make_default_weather_mc as weather_mc
 
 
 @dataclass
-class ScoreWeights:
-    """Weights for per-tick cost components in reward calculation."""
+class ScoreConfig:
+    # weights (dimensionless priorities)
+    w_availability: float
+    w_reloc: float
+    w_charge: float 
+    w_queue: float 
 
-    alpha_unavailability: float  # weight on (1 - availability)
-    beta_reloc_km: float  # weight on total relocation km (per tick)
-    gamma_energy_cost: float  # weight on charging cost € (per tick)
-    delta_queue: float  # weight on queue rate (per tick)
+    # scales (baseline magnitudes, per tick)
+    A0_unavailability: float
+    R0_reloc_km: float
+    C0_charge_cost_eur: float 
+    Q0_queue_total: float 
+
+    eps: float 
 
 
 class PortoMicromobilityEnv:
@@ -56,12 +63,13 @@ class PortoMicromobilityEnv:
     """
 
     def __init__(
-        self,
+         self,
         cfg_path: str | Path,
         *,
-        score_weights: ScoreWeights | None = None,
         episode_hours: int | None = None,
         seed: int = 42,
+        reloc_name_override: str | None = None,
+        charge_name_override: str | None = None,
     ) -> None:
         self.cfg_path = Path(cfg_path)
         self.seed = int(seed)
@@ -81,24 +89,36 @@ class PortoMicromobilityEnv:
         self._last_event_max = 1.0
 
         # Score weights (per-tick cost)
-        self.score_weights = score_weights or ScoreWeights(
-            alpha_unavailability=float(score_cfg.get("alpha_unavailability", 50.0)),
-            beta_reloc_km=float(score_cfg.get("beta_reloc_km", 0.5)),
-            gamma_energy_cost=float(score_cfg.get("gamma_energy_cost", 10.0)),
-            delta_queue=float(score_cfg.get("delta_queue", 10.0)),
-        )
+        w_cfg = score_cfg.get("weights", {})
+        s_cfg = score_cfg.get("scales", {})
 
-        # Planners from YAML (default to greedy)
+        self.score_cfg = ScoreConfig(
+            w_availability=float(w_cfg.get("w_availability", 5.0)),
+            w_reloc=float(w_cfg.get("w_reloc", 1.0)),
+            w_charge=float(w_cfg.get("w_charge", 1.0)),
+            w_queue=float(w_cfg.get("w_queue", 4.0)),
+            A0_unavailability=float(s_cfg.get("A0_unavailability", 0.25)),
+            R0_reloc_km=float(s_cfg.get("R0_reloc_km", 1.0)),
+            C0_charge_cost_eur=float(s_cfg.get("C0_charge_cost_eur", 0.01)),
+            Q0_queue_total=float(s_cfg.get("Q0_queue_total", 10.0)),
+            eps=float(score_cfg.get("eps", 1e-6)),
+)
+
+        # Planners from YAML (default to greedy), with optional runtime overrides
         ops_cfg = self._cfg.get("ops", {})
         planners_cfg = ops_cfg.get("planners", {})
 
         reloc_cfg = planners_cfg.get("relocation", {"name": "greedy", "params": {}})
         charge_cfg = planners_cfg.get("charging", {"name": "greedy", "params": {}})
 
-        self.reloc_name = reloc_cfg.get("name", "greedy")
-        self.base_reloc_params = reloc_cfg.get("params", {}) or {}
+        yaml_reloc_name = str(reloc_cfg.get("name", "greedy"))
+        yaml_charge_name = str(charge_cfg.get("name", "greedy"))
 
-        self.charge_name = charge_cfg.get("name", "greedy")
+        self.reloc_name = str(reloc_name_override) if reloc_name_override is not None else yaml_reloc_name
+        self.charge_name = str(charge_name_override) if charge_name_override is not None else yaml_charge_name
+
+        # Base params still come from YAML; action will modulate these
+        self.base_reloc_params = reloc_cfg.get("params", {}) or {}
         self.base_charge_params = charge_cfg.get("params", {}) or {}
 
         self.reloc_planner = POLICY_REGISTRY.get_relocation(self.reloc_name)
@@ -196,7 +216,7 @@ class PortoMicromobilityEnv:
         reloc_plan = self.reloc_planner(
             self.sim.x,
             self.sim.cfg.capacity,
-            self.sim.cfg.travel_min,
+            self.sim.cfg.cost_km,
             params=reloc_params,
         )
         charge_plan = self.charge_planner(
@@ -270,9 +290,18 @@ class PortoMicromobilityEnv:
         if "max_moves" not in reloc_params:
             reloc_params["max_moves"] = 50
 
+        # If present, allow eval/sweeps to override charging budget directly
+        override = self.base_charge_params.get("charge_budget_frac_override", None)
+        if override is not None:
+            charge_budget = float(override)
+
+        # do NOT pass override key into planner kwargs
+        base_charge = dict(self.base_charge_params)
+        base_charge.pop("charge_budget_frac_override", None)
+
         charge_params = {
-            **self.base_charge_params,
-            "charge_budget_frac": charge_budget,
+            **base_charge,
+            "charge_budget_frac": float(charge_budget),
         }
 
         return reloc_params, charge_params
@@ -280,20 +309,32 @@ class PortoMicromobilityEnv:
     def _compute_reward(self, log: dict[str, Any]) -> float:
         """Per-tick reward: negative instantaneous cost.
 
-        J_t = α * (1 - availability) + β * reloc_km + γ * charge_cost_eur + δ * queue_total
+        J_t = wA * (unavailability / A0)
+            + wR * (reloc_km / R0)
+            + wC * (charge_cost_eur / C0)
+            + wQ * (queue_total / Q0)
         reward_t = -J_t
         """  # noqa: RUF002
-        alpha = self.score_weights.alpha_unavailability
-        beta = self.score_weights.beta_reloc_km
-        gamma = self.score_weights.gamma_energy_cost
-        delta = self.score_weights.delta_queue
+        cfg = self.score_cfg 
 
         availability = float(log.get("availability", 0.0))
         reloc_km = float(log.get("reloc_km", 0.0))
         charge_cost = float(log.get("charge_cost_eur", 0.0))
-        queue_rate = float(log.get("queue_rate", 0.0))
+        queue_total = float(log.get("queue_total", 0.0))
 
-        J_t = alpha * (1.0 - availability) + beta * reloc_km + gamma * charge_cost + delta * queue_rate
+        unavailability = 1.0 - availability
+
+        A0 = max(cfg.A0_unavailability, cfg.eps)
+        R0 = max(cfg.R0_reloc_km, cfg.eps)
+        C0 = max(cfg.C0_charge_cost_eur, cfg.eps)
+        Q0 = max(cfg.Q0_queue_total, cfg.eps)
+
+        J_t = (
+            cfg.w_availability * (unavailability / A0)
+            + cfg.w_reloc * (reloc_km / R0)
+            + cfg.w_charge * (charge_cost / C0)
+            + cfg.w_queue * (queue_total / Q0)
+        )
         return -J_t
 
     def _build_obs(self) -> dict[str, np.ndarray]:

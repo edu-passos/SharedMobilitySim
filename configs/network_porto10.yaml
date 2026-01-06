@@ -279,12 +279,18 @@ energy:
   energy_cost_per_kwh_eur: 0.2
 
 score:
-  # J_run = α * (1 - availability_avg)
-  #       + β * relocation_km_per_tick
-  #       + γ * charging_cost_eur_per_tick
-  #       + δ * rate_waiting_queue_per_tick
-  alpha_unavailability: 80.0 # weight on 1 - availability_avg
-  beta_reloc_km: 2.0 # weight on relocation_km
-  gamma_energy_cost: 80 # weight on charging_cost_eur
-  delta_queue: 20.0 # weight on rate_waiting_queue
+  objective: client_satisfaction_normalized
+  weights:
+    w_availability: 5.0
+    w_reloc: 1.0
+    w_charge: 1.0
+    w_queue: 4.0
+  score:
+  scales:
+    A0_unavailability: 0.483631
+    R0_reloc_km: 0.809323
+    C0_charge_cost_eur: 0.006640
+    Q0_queue_total: 49.131481
+  eps: 1.0e-06
+
 seed: 42
