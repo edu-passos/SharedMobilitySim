@@ -1,35 +1,31 @@
 """
 bandit_param_arms.py
 
-Episode-level Multi-Armed Bandit (UCB1) over *planner parameter arms* (not raw actions).
+Episode-level Multi-Armed Bandit (UCB1) over a discrete grid of *planner parameter arms*.
 
-Each arm is a pair:
-  - relocation km budget (km_budget)
-  - charging budget fraction (charge_budget_frac)
+Each arm is a tuple:
+  - km_budget:          relocation budget parameter passed to the relocation planner
+  - charge_budget_frac: charging budget fraction passed to the charging planner
 
-For each episode, the agent selects one arm and runs the episode with:
-  - action = constant default (or None equivalent)
-  - env planner params overridden via:
-        env.base_reloc_params.update(...)
-        env.base_charge_params.update(...)
+Per episode:
+  1) The bandit selects an arm (km_budget, charge_budget_frac).
+  2) We create a fresh PortoMicromobilityEnv with an episode-specific RNG seed.
+  3) We override env.base_reloc_params[RELOC_BUDGET_KEY] and
+     env.base_charge_params[CHARGE_BUDGET_KEY] with the chosen arm values.
+  4) We roll out the episode using a constant action vector (default_action) each tick.
+     The action is kept fixed so that the bandit is effectively searching over planner
+     budgets, not learning a reactive control policy.
 
-This is designed to directly search the publishable tradeoff grid:
-  km_budget:         [0, 5, 10, 20, 40]
-  charge_budget_frac:[0.0, 0.25, 0.5, 0.75, 1.0]
-
-Outputs JSON: per-episode KPIs + bandit diagnostics + best arm.
-
-Assumptions about your codebase (based on your latest env/eval scripts):
-- envs.porto_env.PortoMicromobilityEnv exists
-- env.score_cfg exists and reward is computed as -J_t with normalized terms:
-      w_availability*(unavailability/A0) + w_reloc*(reloc_km/R0)
-    + w_charge*(charge_cost/C0) + w_queue*(queue_total/Q0)
-- sim.logs entries contain: availability, reloc_km, charge_cost_eur, queue_total,
-  plus demand_total/served_new_total/unmet, etc.
-- Your relocation planner respects a parameter named "km_budget" (per-episode or per-tick),
-  and your charging planner respects "charge_budget_frac".
-
-If your relocation budget parameter name differs, change RELOC_BUDGET_KEY below.
+Reward and metrics:
+  - The environment reward is assumed to be reward_t = -J_t, where J_t is the normalized
+    per-tick objective:
+        J_t = wA * (unavailability / A0)
+            + wR * (reloc_km / R0)
+            + wC * (charge_cost_eur / C0)
+            + wQ * (queue_total / Q0)
+  - We recompute J_t from sim.logs to produce a consistent episode-level KPI summary.
+  - The bandit optimizes for *total episode reward* (sum over ticks), i.e., it maximizes
+    -sum(J_t). This is equivalent to minimizing cumulative cost under the above assumption.
 """
 
 from __future__ import annotations
@@ -44,9 +40,7 @@ import numpy as np
 from envs.porto_env import PortoMicromobilityEnv
 
 
-# -----------------------------
 # Bandit: UCB1
-# -----------------------------
 class UCB1Bandit:
     """UCB1 over discrete arms with scalar rewards (maximize)."""
 
@@ -93,9 +87,7 @@ class UCB1Bandit:
         return int(self.rng.choice(idx))
 
 
-# -----------------------------
 # Arms: grid construction
-# -----------------------------
 def make_param_arms(
     km_budgets: List[float],
     charge_fracs: List[float],
@@ -107,12 +99,59 @@ def make_param_arms(
     return arms
 
 
-# -----------------------------
-# KPI utilities (aligned with env.score_cfg)
-# -----------------------------
+# KPI utilities
 def _arr(logs: List[Dict[str, Any]], key: str, default: float = 0.0) -> np.ndarray:
     return np.array([r.get(key, default) for r in logs], dtype=float)
 
+def apply_scenario(
+    env: PortoMicromobilityEnv,
+    *,
+    scenario: str,
+    seed: int,
+    hotspot_j: int = 0,
+    hotspot_p: float = 0.6,
+    hetero_strength: float = 0.6,
+    event_scale: float = 1.5,
+) -> None:
+    scenario = str(scenario).lower().strip()
+    if scenario in ("", "baseline", "base"):
+        return
+
+    assert env.base_lambda is not None, "env.reset() must be called before apply_scenario()"
+    assert env.P is not None
+    assert env.events_matrix is not None
+
+    N = int(env.base_lambda.shape[0])
+
+    if scenario == "hotspot_od":
+        j0 = int(np.clip(hotspot_j, 0, N - 1))
+        p_hot = float(np.clip(hotspot_p, 0.0, 0.99))
+        P = np.full((N, N), (1.0 - p_hot) / max(N - 1, 1), dtype=float)
+        P[:, j0] = p_hot
+        if N > 1:
+            for i in range(N):
+                rem = 1.0 - P[i, j0]
+                P[i, :] = rem / (N - 1)
+                P[i, j0] = 1.0 - rem
+        env.P = P
+        return
+
+    if scenario == "hetero_lambda":
+        rng = np.random.default_rng(int(seed) + 999)
+        f = rng.normal(loc=1.0, scale=float(hetero_strength), size=N)
+        f = np.clip(f, 0.3, 2.5)
+        f = f / max(float(np.mean(f)), 1e-12)
+        env.base_lambda = env.base_lambda * f
+        return
+
+    if scenario == "event_heavy":
+        E = env.events_matrix.astype(float)
+        E_scaled = 1.0 + float(event_scale) * (E - 1.0)
+        E_scaled = np.clip(E_scaled, 0.0, None)
+        env.events_matrix = E_scaled
+        return
+
+    raise ValueError(f"Unknown scenario '{scenario}'. Use: baseline, hotspot_od, hetero_lambda, event_heavy.")
 
 def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> Dict[str, Any]:
     sim = env.sim
@@ -198,10 +237,8 @@ def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> Dic
     }
 
 
-# -----------------------------
 # Episode runner with param overrides
-# -----------------------------
-RELOC_BUDGET_KEY = "km_budget"  # change here if your planner uses a different name
+RELOC_BUDGET_KEY = "km_budget" 
 CHARGE_BUDGET_KEY = "charge_budget_frac"
 
 
@@ -214,6 +251,8 @@ def run_one_episode_with_arm(
     charge_planner: Optional[str],
     arm: Dict[str, float],
     default_action: np.ndarray,
+    scenario: str,
+    scenario_params: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     env = PortoMicromobilityEnv(
         cfg_path=cfg_path,
@@ -222,10 +261,11 @@ def run_one_episode_with_arm(
         reloc_name_override=reloc_planner,
         charge_name_override=charge_planner,
     )
-    _ = env.reset()
+    obs = env.reset()
+    apply_scenario(env, scenario=scenario, seed=seed, **(scenario_params or {}))
 
     # Apply arm as param override (per-episode)
-    # We write into base_*_params so your _action_to_params merges these and passes down.
+    # We write into base_*_params so _action_to_params merges these and passes down.
     km_budget = float(arm["km_budget"])
     c_frac = float(arm["charge_budget_frac"])
 
@@ -243,8 +283,6 @@ def run_one_episode_with_arm(
     a = np.asarray(default_action, dtype=float).reshape(4,)
     a = np.clip(a, 0.0, 1.0)
 
-    obs = env._build_obs()  # safe after reset; avoids unused var warning
-
     while not done:
         obs, reward, done, _info = env.step(a)
         total_reward += float(reward)
@@ -253,6 +291,8 @@ def run_one_episode_with_arm(
     meta = {
         "seed": int(seed),
         "hours": int(hours),
+        "scenario": scenario,
+        "scenario_params": scenario_params,
         "arm": {"km_budget": km_budget, "charge_budget_frac": c_frac},
         "default_action": a.tolist(),
         "reloc_planner": reloc_planner,
@@ -261,9 +301,7 @@ def run_one_episode_with_arm(
     return kpis, meta
 
 
-# -----------------------------
 # Main
-# -----------------------------
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--config", default="configs/network_porto10.yaml")
@@ -283,6 +321,9 @@ def main() -> None:
         default=[0.5, 0.5, 0.5, 0.5],
         help="Constant action applied every step. Arms override budget params.",
     )
+    # scenarios
+    p.add_argument("--scenario", default="baseline", help="baseline | hotspot_od | hetero_lambda | event_heavy")
+    p.add_argument("--scenario_params_json", default="", help="JSON dict of scenario params (optional).")
 
     # Arm grid
     p.add_argument("--km_budgets", type=float, nargs="+", default=[0, 5, 10, 20, 40])
@@ -298,6 +339,13 @@ def main() -> None:
     cfg_path = str(args.config)
     hours = int(args.hours)
 
+    scenario = str(args.scenario).strip()
+    scenario_params: Dict[str, Any] = {}
+    if args.scenario_params_json.strip():
+        scenario_params = json.loads(args.scenario_params_json)
+        if not isinstance(scenario_params, dict):
+            raise ValueError("--scenario_params_json must be a JSON dict.")
+    
     arms = make_param_arms(km_budgets=list(args.km_budgets), charge_fracs=list(args.charge_fracs))
     bandit = UCB1Bandit(n_arms=len(arms), c=float(args.ucb_c), seed=int(args.seed0))
 
@@ -322,10 +370,12 @@ def main() -> None:
             charge_planner=charge_name,
             arm=arm,
             default_action=default_action,
+            scenario=scenario,
+            scenario_params=scenario_params,  
         )
 
-        total_reward = float(kpis.get("total_reward", 0.0))
-        bandit.update(arm_idx, total_reward)
+        reward = -float(kpis.get("J_run", 0.0))
+        bandit.update(arm_idx, reward)
 
         row = {
             "episode": int(ep),
@@ -354,7 +404,7 @@ def main() -> None:
         "arms": arms,
         "best_arm_idx": int(best_idx),
         "best_arm": dict(arms[best_idx]),
-        "best_arm_mean_total_reward": float(bandit.means[best_idx]),
+        "best_arm_mean_neg_J_run": float(bandit.means[best_idx]),
         "best_arm_pulls": int(bandit.counts[best_idx]),
     }
 
@@ -369,7 +419,8 @@ def main() -> None:
         with open(args.out, "w", encoding="utf-8") as f:
             json.dump(out_obj, f, indent=2)
         print(f"Saved: {args.out}")
-        print(json.dumps({"best_arm": summary["best_arm"], "best_mean_total_reward": summary["best_arm_mean_total_reward"]}, indent=2))
+        print(json.dumps(
+    {"best_arm": summary["best_arm"], "best_mean_neg_J_run": summary["best_arm_mean_neg_J_run"]}, indent=2))
     else:
         print(json.dumps(out_obj, indent=2))
 
