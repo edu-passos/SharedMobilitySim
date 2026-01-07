@@ -244,11 +244,11 @@ def main() -> None:
     script_dir = Path(__file__).resolve().parent
     parent_dir = script_dir.parent
     models_dir = parent_dir / "models"
-    logs_dir = parent_dir / "logs"
-    tensorboard_dir = logs_dir / "sac_tensorboard"
     models_dir.mkdir(exist_ok=True)
-    logs_dir.mkdir(exist_ok=True)
-    tensorboard_dir.mkdir(exist_ok=True)
+    if args.tensorboard_log:
+        logs_dir = parent_dir / "logs"
+        tensorboard_dir = logs_dir / "sac_tensorboard"
+        tensorboard_dir.mkdir(exist_ok=True)
 
     save_filename = f"sac_porto_{time.strftime('%Y%m%d_%H%M%S')}"
 
