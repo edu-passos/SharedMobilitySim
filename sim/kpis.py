@@ -1,20 +1,18 @@
 from dataclasses import asdict
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
 
-def compute_episode_kpis(env, *, total_reward: float) -> Dict[str, Any]:
-    """
-    Compute a comprehensive episode KPI panel from env.sim.logs.
-    """
+def compute_episode_kpis(env, *, total_reward: float) -> dict[str, Any]:
+    """Compute a comprehensive episode KPI panel from env.sim.logs."""
     sim = getattr(env, "sim", None)
     if sim is None or not getattr(sim, "logs", None):
         return {}
 
-    logs: List[Dict[str, Any]] = sim.logs
+    logs: list[dict[str, Any]] = sim.logs
     T = len(logs)
-    dt_min = int(sim.cfg.dt_min)  
+    dt_min = int(sim.cfg.dt_min)
     scfg = env.score_cfg
 
     def arr(key: str, default: float = 0.0) -> np.ndarray:
@@ -34,7 +32,7 @@ def compute_episode_kpis(env, *, total_reward: float) -> Dict[str, Any]:
     unavailability = 1.0 - availability
 
     queue_total = arr("queue_total", 0.0)
-    
+
     queue_rate = arr("queue_rate", 0.0)
 
     demand_total = arr("demand_total", 0.0)
@@ -133,7 +131,6 @@ def compute_episode_kpis(env, *, total_reward: float) -> Dict[str, Any]:
     return {
         "ticks": int(T),
         "dt_min": int(dt_min),
-
         # reward + objective
         "total_reward": float(total_reward),
         "J_run": float(J_run),
@@ -142,7 +139,6 @@ def compute_episode_kpis(env, *, total_reward: float) -> Dict[str, Any]:
         "J_reloc_run": float(np.mean(J_reloc_t)) if T else 0.0,
         "J_charge_run": float(np.mean(J_charge_t)) if T else 0.0,
         "J_queue_run": float(np.mean(J_queue_t)) if T else 0.0,
-
         # service
         "demand_total": int(D),
         "served_total": int(Sunits),
@@ -152,7 +148,6 @@ def compute_episode_kpis(env, *, total_reward: float) -> Dict[str, Any]:
         "availability_demand_weighted": float(availability_demand_weighted),
         "unmet_rate": float(unmet_rate),
         "avg_wait_min_proxy": float(avg_wait_min_proxy),
-
         # queue levels + tails
         "queue_total_avg": safe_mean(queue_total),
         "queue_total_p95": pct(queue_total, 95),
@@ -162,17 +157,14 @@ def compute_episode_kpis(env, *, total_reward: float) -> Dict[str, Any]:
         "queue_rate_p95": pct(queue_rate, 95),
         "queue_rate_p99": pct(queue_rate, 99),
         "queue_rate_max": safe_max(queue_rate),
-
         # SLA time-above-threshold
         "frac_ticks_queue_gt_10": float(frac_ticks_queue_gt_10),
         "frac_ticks_queue_gt_20": float(frac_ticks_queue_gt_20),
-
         # queue stability
         "dq_mean": float(dq_mean),
         "dq_p95": float(dq_p95),
         "dq_p99": float(dq_p99),
         "dq_max": float(dq_max),
-
         # operations totals
         "relocation_km_total": float(reloc_km_total),
         "reloc_units_total": int(reloc_units.sum()),
@@ -182,18 +174,15 @@ def compute_episode_kpis(env, *, total_reward: float) -> Dict[str, Any]:
         "plugged_total": int(plugged.sum()),
         "plugged_reserve_total": int(plugged_reserve.sum()),
         "charge_utilization_avg": safe_mean(charge_util),
-
         # operations burstiness (per-tick tails)
         "reloc_km_p95": pct(reloc_km, 95),
         "reloc_km_p99": pct(reloc_km, 99),
         "reloc_units_p95": pct(reloc_units, 95),
         "reloc_units_p99": pct(reloc_units, 99),
-
         # efficiency ratios
         "km_per_served": float(km_per_served),
         "eur_per_served": float(eur_per_served),
         "kwh_per_served": float(kwh_per_served),
-
         # system state distribution proxies
         "empty_ratio_avg": safe_mean(empty_ratio),
         "empty_ratio_p95": pct(empty_ratio, 95),
@@ -206,7 +195,6 @@ def compute_episode_kpis(env, *, total_reward: float) -> Dict[str, Any]:
         "fill_p10_avg": safe_mean(fill_p10),
         "fill_p90_avg": safe_mean(fill_p90),
         "fill_spread_avg": safe_mean(fill_p90 - fill_p10),
-
         # energy / SoC health
         "soc_mean_avg": safe_mean(soc_mean),
         "soc_mean_vehicles_avg": safe_mean(soc_mean_vehicles),
@@ -214,16 +202,13 @@ def compute_episode_kpis(env, *, total_reward: float) -> Dict[str, Any]:
         "soc_station_min_p05": pct(soc_station_min, 5),
         "soc_station_p10_avg": safe_mean(soc_station_p10),
         "frac_ticks_soc_p10_lt_0_2": float(frac_ticks_soc_p10_lt_0_2),
-
         # rentability primitives (great for discussion)
         "rentable_frac_avg": safe_mean(rentable_frac),
         "soc_bind_frac_avg": safe_mean(soc_bind_frac),
-
         # overflow
         "overflow_rerouted_total": int(overflow_rerouted.sum()),
         "overflow_dropped_total": int(overflow_dropped.sum()),
         "overflow_extra_min_total": float(overflow_extra_min.sum()),
-
         # debug snapshot (optional but handy)
         "score_cfg": asdict(env.score_cfg),
     }

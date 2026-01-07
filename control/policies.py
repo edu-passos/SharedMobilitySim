@@ -1,6 +1,7 @@
 import importlib
 from collections.abc import Callable
 from typing import Any
+
 import numpy as np
 
 PlannerFn = Callable[..., Any]
@@ -108,25 +109,31 @@ def _charge_ml_adapter(x, s, chargers, lam_t, *, params: dict[str, Any]) -> Any:
 REGISTRY.register_relocation("ml", _reloc_ml_adapter)
 REGISTRY.register_charging("ml", _charge_ml_adapter)
 
+
 # ---------- No-op baselines (explicit controls) ----------
 def _reloc_noop_adapter(x, C, move_cost, *, params: dict[str, Any]) -> Any:
     # Relocation plan: empty list of moves
     return []
 
+
 def _charge_noop_adapter(x, s, chargers, lam_t, *, params: dict[str, Any]) -> Any:
     # Charging plan: plug zero vehicles everywhere
     return np.zeros_like(x, dtype=int)
 
+
 REGISTRY.register_relocation("noop", _reloc_noop_adapter)
 REGISTRY.register_charging("noop", _charge_noop_adapter)
 
+
 def _reloc_budgeted_adapter(x, C, cost_km, *, params: dict[str, Any]) -> Any:
     from control.baselines import plan_relocation_budgeted
+
     return plan_relocation_budgeted(x, C, cost_km, **params)
 
 
 def _charge_slack_adapter(x, s, chargers, lam_t, *, params: dict[str, Any]) -> Any:
     from control.baselines import plan_charging_slack
+
     return plan_charging_slack(x, s, chargers, lam_t, **params)
 
 

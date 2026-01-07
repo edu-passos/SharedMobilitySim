@@ -1,10 +1,8 @@
-from __future__ import annotations
-
 import argparse
 import json
-import os
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -69,8 +67,8 @@ def apply_scenario(
 # -----------------------------
 # Arms: grid
 # -----------------------------
-def make_param_arms(km_budgets: List[float], charge_fracs: List[float]) -> List[Dict[str, float]]:
-    arms: List[Dict[str, float]] = []
+def make_param_arms(km_budgets: list[float], charge_fracs: list[float]) -> list[dict[str, float]]:
+    arms: list[dict[str, float]] = []
     for km in km_budgets:
         for c in charge_fracs:
             arms.append({"km_budget": float(km), "charge_budget_frac": float(c)})
@@ -80,9 +78,8 @@ def make_param_arms(km_budgets: List[float], charge_fracs: List[float]) -> List[
 # -----------------------------
 # Context extraction (from obs)
 # -----------------------------
-def context_from_obs(obs: Dict[str, np.ndarray]) -> np.ndarray:
-    """
-    Return a compact feature vector x (d,).
+def context_from_obs(obs: dict[str, np.ndarray]) -> np.ndarray:
+    """Return a compact feature vector x (d,).
 
     Uses only observation dict fields (no sim internals).
     """
@@ -114,7 +111,7 @@ def context_from_obs(obs: Dict[str, np.ndarray]) -> np.ndarray:
     event_max = float(event_stats[1]) if event_stats.size >= 2 else 1.0
 
     # Add bias term at the end
-    x = np.array(
+    return np.array(
         [
             empty_frac,
             full_frac,
@@ -135,20 +132,19 @@ def context_from_obs(obs: Dict[str, np.ndarray]) -> np.ndarray:
         ],
         dtype=float,
     )
-    return x
 
 
 # -----------------------------
 # LinUCB (disjoint model per arm)
 # -----------------------------
 class LinUCB:
-    """
-    Disjoint LinUCB:
-      For each arm a:
-        A_a = I * reg + sum x x^T
-        b_a = sum r x
-      theta_a = A_a^{-1} b_a
-      p(a|x) = theta_a^T x + alpha * sqrt(x^T A_a^{-1} x)
+    """Disjoint LinUCB.
+
+    For each arm a:
+      A_a = I * reg + sum x x^T
+      b_a = sum r x
+    theta_a = A_a^{-1} b_a
+    p(a|x) = theta_a^T x + alpha * sqrt(x^T A_a^{-1} x)
     """
 
     def __init__(self, n_arms: int, d: int, *, alpha: float = 1.0, reg: float = 1.0, seed: int = 0) -> None:
@@ -163,7 +159,7 @@ class LinUCB:
         self.counts = np.zeros(self.n_arms, dtype=int)
 
     def select_arm(self, x: np.ndarray) -> int:
-        x = np.asarray(x, dtype=float).reshape(self.d,)
+        x = np.asarray(x, dtype=float).reshape(self.d)
 
         untried = np.where(self.counts == 0)[0]
         if untried.size > 0:
@@ -183,7 +179,7 @@ class LinUCB:
 
     def update(self, arm_idx: int, x: np.ndarray, reward: float) -> None:
         a = int(arm_idx)
-        x = np.asarray(x, dtype=float).reshape(self.d,)
+        x = np.asarray(x, dtype=float).reshape(self.d)
         r = float(reward)
 
         self.A[a] += np.outer(x, x)
@@ -204,15 +200,15 @@ def run_episode(
     hours: int,
     seed: int,
     scenario: str,
-    scenario_params: Dict[str, Any],
-    reloc_planner: Optional[str],
-    charge_planner: Optional[str],
-    arms: List[Dict[str, float]],
+    scenario_params: dict[str, Any],
+    reloc_planner: str | None,
+    charge_planner: str | None,
+    arms: list[dict[str, float]],
     bandit: LinUCB,
     default_action: np.ndarray,
     block_minutes: int,
     warmup_blocks: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     env = PortoMicromobilityEnv(
         cfg_path=cfg_path,
         episode_hours=hours,
@@ -227,10 +223,10 @@ def run_episode(
     block_ticks = max(1, int(block_minutes // dt_min))
     max_steps = int(env.max_steps)
 
-    a = np.asarray(default_action, dtype=float).reshape(4,)
+    a = np.asarray(default_action, dtype=float).reshape(4)
     a = np.clip(a, 0.0, 1.0)
 
-    blocks: List[Dict[str, Any]] = []
+    blocks: list[dict[str, Any]] = []
     total_reward = 0.0
     done = False
 
@@ -362,7 +358,7 @@ def main() -> None:
     args = p.parse_args()
 
     scenario = str(args.scenario).strip()
-    scenario_params: Dict[str, Any] = {}
+    scenario_params: dict[str, Any] = {}
     if args.scenario_params_json.strip():
         scenario_params = json.loads(args.scenario_params_json)
         if not isinstance(scenario_params, dict):
@@ -381,7 +377,7 @@ def main() -> None:
         seed=int(args.seed0),
     )
 
-    episodes_out: List[Dict[str, Any]] = []
+    episodes_out: list[dict[str, Any]] = []
     for ep in range(int(args.episodes)):
         seed = int(args.seed0) + ep
         ep_out = run_episode(
@@ -417,7 +413,7 @@ def main() -> None:
         "warmup_blocks": int(args.warmup_blocks),
         "linucb_alpha": float(args.linucb_alpha),
         "linucb_reg": float(args.linucb_reg),
-        "n_arms": int(len(arms)),
+        "n_arms": len(arms),
         "arms": arms,
         "bandit_arm_pulls": bandit.counts.tolist(),
         "J_run_mean": float(np.mean(j_runs)) if j_runs.size else float("nan"),
@@ -426,10 +422,10 @@ def main() -> None:
 
     out_obj = {"summary": summary, "episodes": episodes_out}
 
-    out_dir = os.path.dirname(str(args.out))
-    if out_dir:
-        os.makedirs(out_dir, exist_ok=True)
-    with open(str(args.out), "w", encoding="utf-8") as f:
+    out_path = Path(args.out)
+    out_dir = out_path.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
         json.dump(out_obj, f, indent=2)
 
     print(f"Saved: {args.out}")

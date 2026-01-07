@@ -219,7 +219,7 @@ def plan_charging_slack(
     keep_min_rentable: int = 1,
     keep_frac_rentable: float = 0.5,
     # slack gating (proxy): only charge stations whose demand is below a threshold
-    lam_charge_quantile: float = 0.5,   # charge only bottom 50% demand by default
+    lam_charge_quantile: float = 0.5,  # charge only bottom 50% demand by default
     min_score: float | None = None,
 ) -> np.ndarray:
     """Charge only where it's 'slack' (low predicted demand), prioritizing low SoC.

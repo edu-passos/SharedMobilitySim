@@ -1,5 +1,4 @@
-"""
-eval_heuristic_agent.py
+"""eval_heuristic_agent.py
 
 Evaluate a real-time (tick-by-tick) adaptive heuristic agent on PortoMicromobilityEnv,
 using the same normalized objective decomposition as eval_policies.py:
@@ -16,18 +15,16 @@ This script:
 - Saves JSON to --out (same schema style as eval_policies.py: episodes + summary)
 """
 
-from __future__ import annotations
-
 import argparse
 import json
-import os
-from dataclasses import asdict
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 from envs.porto_env import PortoMicromobilityEnv
 from sim.kpis import compute_episode_kpis
+
 
 # Scenario application
 def apply_scenario(
@@ -82,12 +79,12 @@ def apply_scenario(
 
 
 class HeuristicAgent:
-    """
-    Tick-level heuristic with feedback control:
+    """Tick-level heuristic with feedback control:
     - uses queue_rate for demand pressure
     - throttles relocation using EWMA of last reloc_km
     - charges based on SoC tail (p10) rather than mean
     """
+
     # EWMA state
     ewma_reloc_km: float = 0.0
     ewma_queue_rate: float = 0.0
@@ -97,20 +94,20 @@ class HeuristicAgent:
     alpha: float = 0.15
 
     # Relocation targets (interpreted in km/tick, relative)
-    # You should tune these after 1–2 quick sweeps.
-    reloc_km_target_base: float = 4.0     # baseline “sweet spot” per tick scale proxy
-    reloc_km_target_event: float = 20.0   # allow more during events/hotspots
+    # You should tune these after 1-2 quick sweeps.
+    reloc_km_target_base: float = 4.0  # baseline "sweet spot" per tick scale proxy
+    reloc_km_target_event: float = 20.0  # allow more during events/hotspots
 
     def reset(self) -> None:
         self.ewma_reloc_km = 0.0
         self.ewma_queue_rate = 0.0
         self.initialized = False
 
-    def act(self, obs: Dict[str, np.ndarray]) -> np.ndarray:
-        fill = np.asarray(obs["fill_ratio"], dtype=float)   # (N,)
-        soc = np.asarray(obs["soc"], dtype=float)           # (N,)
-        waiting = np.asarray(obs["waiting"], dtype=float)   # (N,)
-        tod = np.asarray(obs["time_of_day"], dtype=float)   # (2,)
+    def act(self, obs: dict[str, np.ndarray]) -> np.ndarray:
+        fill = np.asarray(obs["fill_ratio"], dtype=float)  # (N,)
+        soc = np.asarray(obs["soc"], dtype=float)  # (N,)
+        waiting = np.asarray(obs["waiting"], dtype=float)  # (N,)
+        tod = np.asarray(obs["time_of_day"], dtype=float)  # (2,)
 
         # optional extra signals
         event_max = float(obs.get("event_stats", np.array([1.0, 1.0]))[1])
@@ -214,9 +211,9 @@ def run_one_episode(
     hours: int,
     seed: int,
     scenario: str,
-    scenario_params: Dict[str, Any],
+    scenario_params: dict[str, Any],
     agent: HeuristicAgent,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     env = PortoMicromobilityEnv(cfg_path=cfg_path, episode_hours=hours, seed=seed)
     obs = env.reset()
     if hasattr(agent, "reset"):
@@ -236,8 +233,8 @@ def run_one_episode(
     return kpis, meta
 
 
-def _aggregate(rows: List[Dict[str, Any]], keys: List[str]) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
+def _aggregate(rows: list[dict[str, Any]], keys: list[str]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
     for k in keys:
         vals = np.array([r[k] for r in rows], dtype=float)
         out[k] = {
@@ -264,7 +261,7 @@ def main() -> None:
     args = p.parse_args()
 
     scenario = str(args.scenario).strip()
-    scenario_params: Dict[str, Any] = {}
+    scenario_params: dict[str, Any] = {}
     if args.scenario_params_json.strip():
         scenario_params = json.loads(args.scenario_params_json)
         if not isinstance(scenario_params, dict):
@@ -272,7 +269,7 @@ def main() -> None:
 
     agent = HeuristicAgent()
 
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for k in range(int(args.seeds)):
         seed = int(args.seed0) + k
         kpis, meta = run_one_episode(
@@ -321,10 +318,10 @@ def main() -> None:
         "episodes": rows,
     }
 
-    out_dir = os.path.dirname(args.out)
-    if out_dir:
-        os.makedirs(out_dir, exist_ok=True)
-    with open(args.out, "w", encoding="utf-8") as f:
+    out_path = Path(args.out)
+    out_dir = out_path.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
         json.dump(out, f, indent=2)
 
     # compact console report (matching your eval_policies style)
@@ -347,11 +344,7 @@ def main() -> None:
         f"J_queue={s['J_queue_run']['mean']:.3f}"
     )
     print("\n--- Queue stability (Δqueue) ---")
-    print(
-        f"- heuristic: "
-        f"dq_mean={s['dq_mean']['mean']:.3f}, "
-        f"dq_p95={s['dq_p95']['mean']:.3f}"
-    )
+    print(f"- heuristic: dq_mean={s['dq_mean']['mean']:.3f}, dq_p95={s['dq_p95']['mean']:.3f}")
     print(f"\nSaved: {args.out}")
 
 

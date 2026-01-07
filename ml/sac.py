@@ -77,7 +77,11 @@ def compute_episode_kpis(env: PortoMicromobilityEnv) -> dict[str, float]:
     #   J_sum = Σ_t [ α (1 - availability_t) + β reloc_km_t + γ charge_cost_t ]
     # Approximated using:
     #   availability_avg, reloc_km_total, charge_cost_total
-    J_sum = w.alpha_unavailability * T * (1.0 - availability_avg) + w.beta_reloc_km * reloc_km_total + w.gamma_energy_cost * charge_cost_eur_total
+    J_sum = (
+        w.alpha_unavailability * T * (1.0 - availability_avg)
+        + w.beta_reloc_km * reloc_km_total
+        + w.gamma_energy_cost * charge_cost_eur_total
+    )
 
     # Average cost per tick
     J_run = J_sum / T
@@ -219,7 +223,7 @@ def main() -> None:
     if args.train_logs:
         out_data = {"results": results, "additional_info": _convert_ndarray_to_list(infos)}
         out_path = model_path.with_suffix(".json")
-        with open(out_path, "w") as f:
+        with out_path.open("w") as f:
             json.dump(out_data, f, indent=2)
         print(f"Results saved to {out_path}")
 

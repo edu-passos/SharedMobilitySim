@@ -42,16 +42,16 @@ class ScoreConfig:
     # weights (dimensionless priorities)
     w_availability: float
     w_reloc: float
-    w_charge: float 
-    w_queue: float 
+    w_charge: float
+    w_queue: float
 
     # scales (baseline magnitudes, per tick)
     A0_unavailability: float
     R0_reloc_km: float
-    C0_charge_cost_eur: float 
-    Q0_queue_total: float 
+    C0_charge_cost_eur: float
+    Q0_queue_total: float
 
-    eps: float 
+    eps: float
 
 
 class PortoMicromobilityEnv:
@@ -63,7 +63,7 @@ class PortoMicromobilityEnv:
     """
 
     def __init__(
-         self,
+        self,
         cfg_path: str | Path,
         *,
         episode_hours: int | None = None,
@@ -102,7 +102,7 @@ class PortoMicromobilityEnv:
             C0_charge_cost_eur=float(s_cfg.get("C0_charge_cost_eur", 0.01)),
             Q0_queue_total=float(s_cfg.get("Q0_queue_total", 10.0)),
             eps=float(score_cfg.get("eps", 1e-6)),
-)
+        )
 
         # Planners from YAML (default to greedy), with optional runtime overrides
         ops_cfg = self._cfg.get("ops", {})
@@ -314,8 +314,8 @@ class PortoMicromobilityEnv:
             + wC * (charge_cost_eur / C0)
             + wQ * (queue_total / Q0)
         reward_t = -J_t
-        """  # noqa: RUF002
-        cfg = self.score_cfg 
+        """
+        cfg = self.score_cfg
 
         availability = float(log.get("availability", 0.0))
         reloc_km = float(log.get("reloc_km", 0.0))
@@ -351,7 +351,6 @@ class PortoMicromobilityEnv:
         last_queue_total = float(last.get("queue_total", 0.0))
         last_queue_rate = float(last.get("queue_rate", 0.0))
 
-
         # time-of-day features
         hour = (self.step_idx * self.dt_min / 60.0) % 24
         angle = 2.0 * np.pi * hour / 24.0
@@ -368,12 +367,14 @@ class PortoMicromobilityEnv:
             "time_of_day": tod,  # shape (2,),
             "weather_factor": np.array([self._last_weather_factor], dtype=float),  # shape (1,)
             "event_stats": np.array([self._last_event_mean, self._last_event_max], dtype=float),  # shape (2,)
-            "last_kpi": np.array([
-                last_reloc_km,
-                last_reloc_units,
-                last_charge_cost,
-                last_queue_total,
-                last_queue_rate,
-            ], dtype=float
-             ), # shape (5,),
+            "last_kpi": np.array(
+                [
+                    last_reloc_km,
+                    last_reloc_units,
+                    last_charge_cost,
+                    last_queue_total,
+                    last_queue_rate,
+                ],
+                dtype=float,
+            ),  # shape (5,),
         }

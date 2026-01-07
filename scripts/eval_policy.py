@@ -1,5 +1,4 @@
-"""
-eval_policies.py
+"""eval_policies.py
 
 Evaluation runner + controlled sweeps + scenarios.
 
@@ -9,13 +8,11 @@ Policies supported:
 - Params override: merged into env.base_reloc_params/env.base_charge_params after reset()
 """
 
-from __future__ import annotations
-
 import argparse
 import json
-import os
 from dataclasses import asdict
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -91,7 +88,7 @@ def apply_scenario(
 
 
 # KPIs (aligned with normalized objective in env.score_cfg)
-def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> Dict[str, Any]:
+def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> dict[str, Any]:
     sim = env.sim
     if sim is None or not sim.logs:
         return {}
@@ -145,9 +142,7 @@ def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> Dic
 
     # ---------------- SoC / feasibility proxies ----------------
     soc_mean_vehicles_avg = float(arr("soc_mean_vehicles").mean())
-    rentable_ratio_pre_avg = float(
-        (arr("x_rentable_total_pre") / np.maximum(arr("x_total_pre"), 1.0)).mean()
-    )
+    rentable_ratio_pre_avg = float((arr("x_rentable_total_pre") / np.maximum(arr("x_total_pre"), 1.0)).mean())
     soc_bind_frac_avg = float(arr("soc_bind_frac").mean())
 
     # Additional mechanism KPIs
@@ -241,13 +236,13 @@ def _run_episode(
     cfg_path: str,
     hours: int,
     seed: int,
-    action: Optional[np.ndarray],
-    reloc_name: Optional[str],
-    charge_name: Optional[str],
-    params_override: Optional[Dict[str, Dict[str, Any]]] = None,
+    action: np.ndarray | None,
+    reloc_name: str | None,
+    charge_name: str | None,
+    params_override: dict[str, dict[str, Any]] | None = None,
     scenario: str = "baseline",
-    scenario_params: Optional[Dict[str, Any]] = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    scenario_params: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     env = PortoMicromobilityEnv(
         cfg_path=cfg_path,
         episode_hours=hours,
@@ -274,7 +269,7 @@ def _run_episode(
 
     a = None
     if action is not None:
-        a = np.asarray(action, dtype=float).reshape(4,)
+        a = np.asarray(action, dtype=float).reshape(4)
         a = np.clip(a, 0.0, 1.0)
 
     while not done:
@@ -296,8 +291,8 @@ def _run_episode(
     return kpis, meta
 
 
-def _aggregate(rows: List[Dict[str, Any]], keys: List[str]) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
+def _aggregate(rows: list[dict[str, Any]], keys: list[str]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
     for k in keys:
         vals = np.array([r[k] for r in rows], dtype=float)
         out[k] = {
@@ -339,7 +334,7 @@ def main() -> None:
         default="",
         help=(
             "JSON list of [reloc, charge] pairs, "
-            "e.g. '[[\"noop\",\"noop\"],[\"budgeted\",\"greedy\"]]'. "
+            'e.g. \'[["noop","noop"],["budgeted","greedy"]]\'. '
             "If empty, defaults to a baseline set."
         ),
     )
@@ -377,7 +372,7 @@ def main() -> None:
     hours = int(args.hours)
 
     scenario = str(args.scenario).strip()
-    scenario_params: Dict[str, Any] = {}
+    scenario_params: dict[str, Any] = {}
     if args.scenario_params_json.strip():
         scenario_params = json.loads(args.scenario_params_json)
         if not isinstance(scenario_params, dict):
@@ -385,20 +380,19 @@ def main() -> None:
 
     # ---- actions ----
     if args.no_actions:
-        actions: List[Optional[List[float]]] = [None]
+        actions: list[list[float] | None] = [None]
+    elif args.actions_json.strip():
+        actions = json.loads(args.actions_json)
+        if not isinstance(actions, list):
+            raise ValueError("--actions_json must be a JSON list of 4D action vectors.")
     else:
-        if args.actions_json.strip():
-            actions = json.loads(args.actions_json)
-            if not isinstance(actions, list):
-                raise ValueError("--actions_json must be a JSON list of 4D action vectors.")
-        else:
-            actions = [
-                [0.0, 0.0, 0.0, 0.0],
-                [0.5, 0.5, 0.5, 0.5],
-                [1.0, 1.0, 1.0, 1.0],
-            ]
+        actions = [
+            [0.0, 0.0, 0.0, 0.0],
+            [0.5, 0.5, 0.5, 0.5],
+            [1.0, 1.0, 1.0, 1.0],
+        ]
 
-    policies: List[Dict[str, Any]] = []
+    policies: list[dict[str, Any]] = []
 
     if args.sweep:
         # Controlled grid sweep over budgets.
@@ -416,10 +410,7 @@ def main() -> None:
             for cf in charge_fracs:
                 # Important: for charge sweep to work, env must respect "charge_budget_frac_override"
                 # (see patch below).
-                params_override = {
-                    "reloc": {"km_budget": float(km)},
-                    "charge": {"charge_budget_frac": float(cf)}
-                }
+                params_override = {"reloc": {"km_budget": float(km)}, "charge": {"charge_budget_frac": float(cf)}}
                 policies.append(
                     {
                         "name": f"sweep__km{float(km):g}__c{float(cf):g}",
@@ -460,8 +451,8 @@ def main() -> None:
                 )
 
     # ---- run ----
-    all_rows: List[Dict[str, Any]] = []
-    per_policy: Dict[str, List[Dict[str, Any]]] = {pol["name"]: [] for pol in policies}
+    all_rows: list[dict[str, Any]] = []
+    per_policy: dict[str, list[dict[str, Any]]] = {pol["name"]: [] for pol in policies}
 
     for pol in policies:
         name = pol["name"]
@@ -469,7 +460,7 @@ def main() -> None:
         charge_name = pol["charge"]
         params_override = pol.get("params_override", None)
 
-        action_np: Optional[np.ndarray] = None
+        action_np: np.ndarray | None = None
         if pol["action"] is not None:
             a = np.asarray(pol["action"], dtype=float)
             if a.shape != (4,):
@@ -548,16 +539,15 @@ def main() -> None:
     }
 
     # Write output
-    out_dir = os.path.dirname(args.out)
-    if out_dir:
-        os.makedirs(out_dir, exist_ok=True)
-    with open(args.out, "w", encoding="utf-8") as f:
+    out_path = Path(args.out)
+    out_dir = out_path.parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
         json.dump(out, f, indent=2)
 
     # Console summary (compact)
     print("\n=== Policy summary (mean ± std over seeds) ===")
-    for name in summaries:
-        s = summaries[name]
+    for name, s in summaries.items():
         print(
             f"- {name}: "
             f"J_run={s['J_run']['mean']:.3f}±{s['J_run']['std']:.3f}, "
@@ -568,8 +558,7 @@ def main() -> None:
         )
 
     print("\n--- Objective decomposition (per-tick mean contributions) ---")
-    for name in summaries:
-        s = summaries[name]
+    for name, s in summaries.items():
         print(
             f"- {name}: "
             f"J_avail={s['J_avail_run']['mean']:.3f}, "
@@ -579,13 +568,8 @@ def main() -> None:
         )
 
     print("\n--- Queue stability (Δqueue) ---")
-    for name in summaries:
-        s = summaries[name]
-        print(
-            f"- {name}: "
-            f"dq_mean={s['queue_delta_mean']['mean']:.3f}, "
-            f"dq_p95={s['queue_delta_p95']['mean']:.3f}"
-        )
+    for name, s in summaries.items():
+        print(f"- {name}: dq_mean={s['queue_delta_mean']['mean']:.3f}, dq_p95={s['queue_delta_p95']['mean']:.3f}")
 
     print(f"\nSaved: {args.out}")
 

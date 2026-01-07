@@ -1,5 +1,4 @@
-"""
-bandit_param_arms.py
+"""bandit_param_arms.py
 
 Episode-level Multi-Armed Bandit (UCB1) over a discrete grid of *planner parameter arms*.
 
@@ -28,17 +27,16 @@ Reward and metrics:
     -sum(J_t). This is equivalent to minimizing cumulative cost under the above assumption.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
-from dataclasses import asdict
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 from envs.porto_env import PortoMicromobilityEnv
 from sim.kpis import compute_episode_kpis
+
 
 # Bandit: UCB1
 class UCB1Bandit:
@@ -89,10 +87,10 @@ class UCB1Bandit:
 
 # Arms: grid construction
 def make_param_arms(
-    km_budgets: List[float],
-    charge_fracs: List[float],
-) -> List[Dict[str, float]]:
-    arms: List[Dict[str, float]] = []
+    km_budgets: list[float],
+    charge_fracs: list[float],
+) -> list[dict[str, float]]:
+    arms: list[dict[str, float]] = []
     for km in km_budgets:
         for c in charge_fracs:
             arms.append({"km_budget": float(km), "charge_budget_frac": float(c)})
@@ -100,8 +98,9 @@ def make_param_arms(
 
 
 # KPI utilities
-def _arr(logs: List[Dict[str, Any]], key: str, default: float = 0.0) -> np.ndarray:
+def _arr(logs: list[dict[str, Any]], key: str, default: float = 0.0) -> np.ndarray:
     return np.array([r.get(key, default) for r in logs], dtype=float)
+
 
 def apply_scenario(
     env: PortoMicromobilityEnv,
@@ -154,9 +153,8 @@ def apply_scenario(
     raise ValueError(f"Unknown scenario '{scenario}'. Use: baseline, hotspot_od, hetero_lambda, event_heavy.")
 
 
-
 # Episode runner with param overrides
-RELOC_BUDGET_KEY = "km_budget" 
+RELOC_BUDGET_KEY = "km_budget"
 CHARGE_BUDGET_KEY = "charge_budget_frac"
 
 
@@ -165,13 +163,13 @@ def run_one_episode_with_arm(
     cfg_path: str,
     hours: int,
     seed: int,
-    reloc_planner: Optional[str],
-    charge_planner: Optional[str],
-    arm: Dict[str, float],
+    reloc_planner: str | None,
+    charge_planner: str | None,
+    arm: dict[str, float],
     default_action: np.ndarray,
     scenario: str,
-    scenario_params: Dict[str, Any],
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    scenario_params: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
     env = PortoMicromobilityEnv(
         cfg_path=cfg_path,
         episode_hours=hours,
@@ -198,7 +196,7 @@ def run_one_episode_with_arm(
     done = False
     total_reward = 0.0
 
-    a = np.asarray(default_action, dtype=float).reshape(4,)
+    a = np.asarray(default_action, dtype=float).reshape(4)
     a = np.clip(a, 0.0, 1.0)
 
     while not done:
@@ -258,20 +256,20 @@ def main() -> None:
     hours = int(args.hours)
 
     scenario = str(args.scenario).strip()
-    scenario_params: Dict[str, Any] = {}
+    scenario_params: dict[str, Any] = {}
     if args.scenario_params_json.strip():
         scenario_params = json.loads(args.scenario_params_json)
         if not isinstance(scenario_params, dict):
             raise ValueError("--scenario_params_json must be a JSON dict.")
-    
+
     arms = make_param_arms(km_budgets=list(args.km_budgets), charge_fracs=list(args.charge_fracs))
     bandit = UCB1Bandit(n_arms=len(arms), c=float(args.ucb_c), seed=int(args.seed0))
 
-    default_action = np.asarray(args.default_action, dtype=float).reshape(4,)
+    default_action = np.asarray(args.default_action, dtype=float).reshape(4)
     reloc_name = str(args.reloc) if args.reloc else None
     charge_name = str(args.charge) if args.charge else None
 
-    episodes_out: List[Dict[str, Any]] = []
+    episodes_out: list[dict[str, Any]] = []
 
     for ep in range(int(args.episodes)):
         arm_idx = bandit.select_arm()
@@ -289,7 +287,7 @@ def main() -> None:
             arm=arm,
             default_action=default_action,
             scenario=scenario,
-            scenario_params=scenario_params,  
+            scenario_params=scenario_params,
         )
 
         reward = -float(kpis.get("J_run", 0.0))
@@ -318,7 +316,7 @@ def main() -> None:
         "charge_planner": charge_name,
         "default_action": default_action.tolist(),
         "ucb_c": float(args.ucb_c),
-        "n_arms": int(len(arms)),
+        "n_arms": len(arms),
         "arms": arms,
         "best_arm_idx": int(best_idx),
         "best_arm": dict(arms[best_idx]),
@@ -329,16 +327,13 @@ def main() -> None:
     out_obj = {"summary": summary, "episodes": episodes_out}
 
     if args.out.strip():
-        import os
-
-        out_dir = os.path.dirname(args.out)
-        if out_dir:
-            os.makedirs(out_dir, exist_ok=True)
-        with open(args.out, "w", encoding="utf-8") as f:
+        out_path = Path(args.out)
+        out_dir = out_path.parent
+        out_dir.mkdir(parents=True, exist_ok=True)
+        with out_path.open("w", encoding="utf-8") as f:
             json.dump(out_obj, f, indent=2)
         print(f"Saved: {args.out}")
-        print(json.dumps(
-    {"best_arm": summary["best_arm"], "best_mean_neg_J_run": summary["best_arm_mean_neg_J_run"]}, indent=2))
+        print(json.dumps({"best_arm": summary["best_arm"], "best_mean_neg_J_run": summary["best_arm_mean_neg_J_run"]}, indent=2))
     else:
         print(json.dumps(out_obj, indent=2))
 

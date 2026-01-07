@@ -1,6 +1,4 @@
-
-"""
-Purpose
+"""Purpose
 -------
 Estimate normalization scales (A0, R0, C0, Q0) for the *normalized* client-satisfaction objective:
 
@@ -13,19 +11,17 @@ We calibrate A0,R0,C0,Q0 as *per-tick baseline magnitudes* under a fixed policy 
 averaged over many random seeds.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 from dataclasses import asdict
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 
 from envs.porto_env import PortoMicromobilityEnv
 
 
-def _collect_tick_arrays(env: PortoMicromobilityEnv) -> Dict[str, np.ndarray]:
+def _collect_tick_arrays(env: PortoMicromobilityEnv) -> dict[str, np.ndarray]:
     sim = env.sim
     if sim is None or not sim.logs:
         raise RuntimeError("No sim logs found. Did the episode run any steps?")
@@ -38,14 +34,13 @@ def _collect_tick_arrays(env: PortoMicromobilityEnv) -> Dict[str, np.ndarray]:
     availability = arr("availability")
     unavailability = 1.0 - availability
 
-    out = {
+    return {
         "unavailability": unavailability,
         "reloc_km": arr("reloc_km"),
         "charge_cost_eur": arr("charge_cost_eur"),
         "queue_total": arr("queue_total"),
         "ticks": np.array([len(logs)], dtype=float),
     }
-    return out
 
 
 def run_one_episode(
@@ -54,7 +49,7 @@ def run_one_episode(
     hours: int,
     seed: int,
     action: np.ndarray,
-) -> Tuple[Dict[str, float], Dict[str, Any]]:
+) -> tuple[dict[str, float], dict[str, Any]]:
     env = PortoMicromobilityEnv(cfg_path=cfg_path, episode_hours=hours, seed=seed)
     obs = env.reset()
 
@@ -108,8 +103,8 @@ def main() -> None:
     action = np.array(args.action, dtype=float)
     eps = float(args.eps)
 
-    ep_rows: List[Dict[str, float]] = []
-    metas: List[Dict[str, Any]] = []
+    ep_rows: list[dict[str, float]] = []
+    metas: list[dict[str, Any]] = []
 
     for k in range(int(args.seeds)):
         seed = int(args.seed0) + k
@@ -132,7 +127,7 @@ def main() -> None:
     # Optional per-episode print
     if args.print_episode_table:
         for i, row in enumerate(ep_rows):
-            print(f"[seed={int(args.seed0)+i}] " + " ".join(f"{k}={row[k]:.6f}" for k in keys))
+            print(f"[seed={int(args.seed0) + i}] " + " ".join(f"{k}={row[k]:.6f}" for k in keys))
 
     # YAML snippet
     print("\n# ----------------- CALIBRATED SCALES (per tick) -----------------")
