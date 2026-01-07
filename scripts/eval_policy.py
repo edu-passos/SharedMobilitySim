@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 
 from envs.porto_env import PortoMicromobilityEnv
+from sim.kpis import compute_episode_kpis
 
 
 # Scenario application
@@ -86,149 +87,6 @@ def apply_scenario(
 
     raise ValueError(f"Unknown scenario '{scenario}'. Use: baseline, hotspot_od, hetero_lambda, event_heavy.")
 
-
-# KPIs (aligned with normalized objective in env.score_cfg)
-def compute_episode_kpis(env: PortoMicromobilityEnv, total_reward: float) -> dict[str, Any]:
-    sim = env.sim
-    if sim is None or not sim.logs:
-        return {}
-
-    logs = sim.logs
-    T = len(logs)
-    dt_min = sim.cfg.dt_min
-    scfg = env.score_cfg
-
-    def arr(key: str, default: float = 0.0) -> np.ndarray:
-        return np.array([r.get(key, default) for r in logs], dtype=float)
-
-    # ---------------- volumes ----------------
-    demand_total = int(arr("demand_total").sum())
-    served_total = int(arr("served_total").sum())
-    served_new_total = int(arr("served_new_total").sum())
-    unmet_total = int(arr("unmet").sum())
-    backlog_served_total = int(max(0, served_total - served_new_total))
-
-    availability_demand_weighted = 1.0 if demand_total == 0 else (served_new_total / demand_total)
-    unmet_rate = 0.0 if demand_total == 0 else (unmet_total / demand_total)
-    availability_tick_avg = float(arr("availability").mean())
-
-    # ---------------- queue / wait proxy ----------------
-    queue_total = arr("queue_total")
-    queue_rate = arr("queue_rate")
-
-    total_queue_time_min = float(queue_total.sum() * dt_min)
-    avg_wait_min_proxy = float(total_queue_time_min / max(served_total, 1))
-
-    queue_total_p95 = float(np.percentile(queue_total, 95)) if T else 0.0
-    queue_rate_p95 = float(np.percentile(queue_rate, 95)) if T else 0.0
-
-    # Queue stability: delta per tick
-    if T > 1:
-        dq = queue_total[1:] - queue_total[:-1]
-        queue_delta_mean = float(np.mean(dq))
-        queue_delta_p95 = float(np.percentile(dq, 95))
-    else:
-        queue_delta_mean = 0.0
-        queue_delta_p95 = 0.0
-
-    # ---------------- ops ----------------
-    reloc_km_total = float(arr("reloc_km").sum())
-    reloc_units_total = int(arr("reloc_units").sum())
-    reloc_edges_total = int(arr("reloc_edges").sum())
-
-    charge_energy_kwh_total = float(arr("charge_energy_kwh").sum())
-    charge_cost_eur_total = float(arr("charge_cost_eur").sum())
-    charge_util_avg = float(arr("charge_utilization").mean())
-
-    # ---------------- SoC / feasibility proxies ----------------
-    soc_mean_vehicles_avg = float(arr("soc_mean_vehicles").mean())
-    rentable_ratio_pre_avg = float((arr("x_rentable_total_pre") / np.maximum(arr("x_total_pre"), 1.0)).mean())
-    soc_bind_frac_avg = float(arr("soc_bind_frac").mean())
-
-    # Additional mechanism KPIs
-    plugged_avg = float(arr("plugged").mean())
-    plugged_reserve_avg = float(arr("plugged_reserve").mean())
-    rentable_frac_avg = float(arr("rentable_frac").mean())
-    soc_station_p10_avg = float(arr("soc_station_p10").mean())
-
-    # ---------------- balance ----------------
-    empty_ratio_avg = float(arr("empty_ratio").mean())
-    full_ratio_avg = float(arr("full_ratio").mean())
-    stock_std_avg = float(arr("stock_std").mean())
-
-    # ---------------- normalized objective recompute (with decomposition) ----------------
-    unavailability = 1.0 - arr("availability")
-    A0 = max(scfg.A0_unavailability, scfg.eps)
-    R0 = max(scfg.R0_reloc_km, scfg.eps)
-    C0 = max(scfg.C0_charge_cost_eur, scfg.eps)
-    Q0 = max(scfg.Q0_queue_total, scfg.eps)
-
-    J_avail = scfg.w_availability * (unavailability / A0)
-    J_reloc = scfg.w_reloc * (arr("reloc_km") / R0)
-    J_charge = scfg.w_charge * (arr("charge_cost_eur") / C0)
-    J_queue = scfg.w_queue * (arr("queue_total") / Q0)
-
-    J_t = J_avail + J_reloc + J_charge + J_queue
-    J_run = float(np.mean(J_t))
-
-    J_avail_run = float(np.mean(J_avail))
-    J_reloc_run = float(np.mean(J_reloc))
-    J_charge_run = float(np.mean(J_charge))
-    J_queue_run = float(np.mean(J_queue))
-
-    reward_plus_sumJ = float(total_reward + float(np.sum(J_t)))
-
-    return {
-        "ticks": int(T),
-        "total_reward": float(total_reward),
-        "J_run": float(J_run),
-        "reward_plus_sumJ": float(reward_plus_sumJ),
-        # objective decomposition
-        "J_avail_run": float(J_avail_run),
-        "J_reloc_run": float(J_reloc_run),
-        "J_charge_run": float(J_charge_run),
-        "J_queue_run": float(J_queue_run),
-        # service
-        "availability_tick_avg": float(availability_tick_avg),
-        "availability_demand_weighted": float(availability_demand_weighted),
-        "unmet_total": int(unmet_total),
-        "unmet_rate": float(unmet_rate),
-        "avg_wait_min_proxy": float(avg_wait_min_proxy),
-        # queue
-        "queue_total_avg": float(queue_total.mean()) if T else 0.0,
-        "queue_total_p95": float(queue_total_p95),
-        "queue_rate_avg": float(queue_rate.mean()) if T else 0.0,
-        "queue_rate_p95": float(queue_rate_p95),
-        "queue_delta_mean": float(queue_delta_mean),
-        "queue_delta_p95": float(queue_delta_p95),
-        # ops
-        "relocation_km_total": float(reloc_km_total),
-        "reloc_units_total": int(reloc_units_total),
-        "reloc_edges_total": int(reloc_edges_total),
-        "charging_energy_kwh_total": float(charge_energy_kwh_total),
-        "charging_cost_eur_total": float(charge_cost_eur_total),
-        "charge_utilization_avg": float(charge_util_avg),
-        # SoC / feasibility
-        "soc_mean_vehicles_avg": float(soc_mean_vehicles_avg),
-        "rentable_ratio_pre_avg": float(rentable_ratio_pre_avg),
-        "soc_bind_frac_avg": float(soc_bind_frac_avg),
-        # charging/rentability mechanisms
-        "plugged_avg": float(plugged_avg),
-        "plugged_reserve_avg": float(plugged_reserve_avg),
-        "rentable_frac_avg": float(rentable_frac_avg),
-        "soc_station_p10_avg": float(soc_station_p10_avg),
-        # balance
-        "empty_ratio_avg": float(empty_ratio_avg),
-        "full_ratio_avg": float(full_ratio_avg),
-        "stock_std_avg": float(stock_std_avg),
-        # volumes
-        "demand_total": int(demand_total),
-        "served_total": int(served_total),
-        "served_new_total": int(served_new_total),
-        "backlog_served_total": int(backlog_served_total),
-        # score config snapshot
-        "score_cfg": asdict(env.score_cfg),
-    }
 
 
 def _run_episode(
@@ -486,42 +344,97 @@ def main() -> None:
 
     # Aggregate policy summaries
     report_keys = [
-        # overall
+        # reward + objective
         "J_run",
         "total_reward",
         "reward_plus_sumJ",
-        # decomposition
         "J_avail_run",
         "J_reloc_run",
         "J_charge_run",
         "J_queue_run",
+
         # service
         "availability_demand_weighted",
         "availability_tick_avg",
         "unmet_rate",
         "avg_wait_min_proxy",
-        # queue
+        "demand_total",
+        "served_total",
+        "served_new_total",
+        "unmet_total",
+
+        # queue levels
+        "queue_total_avg",
         "queue_total_p95",
+        "queue_total_p99",
+        "queue_total_max",
+        "queue_rate_avg",
         "queue_rate_p95",
-        "queue_delta_mean",
-        "queue_delta_p95",
-        # ops
+        "queue_rate_p99",
+        "queue_rate_max",
+
+        # SLA time-above-threshold
+        "frac_ticks_queue_gt_10",
+        "frac_ticks_queue_gt_20",
+
+        # queue stability
+        "dq_mean",
+        "dq_p95",
+        "dq_p99",
+        "dq_max",
+
+        # operations totals
         "relocation_km_total",
+        "reloc_units_total",
+        "reloc_edges_total",
+        "charging_energy_kwh_total",
         "charging_cost_eur_total",
         "charge_utilization_avg",
-        # mechanisms
-        "rentable_ratio_pre_avg",
-        "soc_bind_frac_avg",
-        "plugged_avg",
-        "plugged_reserve_avg",
-        "rentable_frac_avg",
-        "soc_station_p10_avg",
-        # SoC & balance
-        "soc_mean_vehicles_avg",
+        "plugged_total",
+        "plugged_reserve_total",
+
+        # operations burstiness
+        "reloc_km_p95",
+        "reloc_km_p99",
+        "reloc_units_p95",
+        "reloc_units_p99",
+
+        # efficiency ratios
+        "km_per_served",
+        "eur_per_served",
+        "kwh_per_served",
+
+        # balance/state proxies
         "empty_ratio_avg",
+        "empty_ratio_p95",
+        "empty_ratio_max",
         "full_ratio_avg",
+        "full_ratio_p95",
+        "full_ratio_max",
         "stock_std_avg",
+        "stock_std_p95",
+        "fill_p10_avg",
+        "fill_p90_avg",
+        "fill_spread_avg",
+
+        # energy / SoC health
+        "soc_mean_avg",
+        "soc_mean_vehicles_avg",
+        "soc_station_min_avg",
+        "soc_station_min_p05",
+        "soc_station_p10_avg",
+        "frac_ticks_soc_p10_lt_0_2",
+
+        # rentability primitives
+        "rentable_frac_avg",
+        "soc_bind_frac_avg",
+
+        # overflow
+        "overflow_rerouted_total",
+        "overflow_dropped_total",
+        "overflow_extra_min_total",
     ]
+
 
     summaries = {name: _aggregate(rows, report_keys) for name, rows in per_policy.items()}
 
