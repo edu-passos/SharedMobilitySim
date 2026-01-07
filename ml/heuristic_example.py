@@ -1,4 +1,4 @@
-"""eval_heuristic_agent.py
+"""eval_heuristic_agent.py.
 
 Evaluate a real-time (tick-by-tick) adaptive heuristic agent on PortoMicromobilityEnv,
 using the same normalized objective decomposition as eval_policies.py:
@@ -79,7 +79,8 @@ def apply_scenario(
 
 
 class HeuristicAgent:
-    """Tick-level heuristic with feedback control:
+    """Tick-level heuristic with feedback control.
+
     - uses queue_rate for demand pressure
     - throttles relocation using EWMA of last reloc_km
     - charges based on SoC tail (p10) rather than mean
@@ -175,27 +176,27 @@ class HeuristicAgent:
         # charge_budget = 0.05 + 0.35*a3
         # -----------------------------
 
-        # a0 (low threshold) — raise with pressure, but *decrease* under throttle
+        # a0 (low threshold) - raise with pressure, but *decrease* under throttle
         base_a0 = 0.35 if (is_morning_peak or is_evening_peak) else 0.18
         a0 = base_a0 + 0.75 * pressure - 0.70 * throttle
         # extra safety: if lots of full stations, don't mark too many as needy (prevents churn)
         a0 -= 0.20 * full_frac
         a0 = float(np.clip(a0, 0.0, 1.0))
 
-        # a1 (high threshold) — higher => stricter donors => less reloc; increase under throttle
+        # a1 (high threshold) - higher => stricter donors => less reloc; increase under throttle
         base_a1 = 0.20 if (is_morning_peak or is_evening_peak) else (0.70 if is_night else 0.45)
         a1 = base_a1 + 0.70 * throttle - 0.30 * pressure
         # if system is very full, relax donors slightly to alleviate overflow
         a1 -= 0.25 * full_frac
         a1 = float(np.clip(a1, 0.0, 1.0))
 
-        # a2 (target fill) — increase when pressure is high; decrease when throttled (reduces reloc need)
+        # a2 (target fill) - increase when pressure is high; decrease when throttled (reduces reloc need)
         a2 = 0.25 + 0.85 * pressure - 0.25 * throttle
         if not (is_morning_peak or is_evening_peak):
             a2 -= 0.10
         a2 = float(np.clip(a2, 0.0, 1.0))
 
-        # a3 (charging) — depend on SoC tail + pressure; boost at night
+        # a3 (charging) - depend on SoC tail + pressure; boost at night
         soc_lack_tail = float(np.clip(0.35 - soc_p10, 0.0, 0.35) / 0.35)  # soc_p10 below 0.35 -> higher
         drive = 0.55 * soc_lack_tail + 0.45 * np.clip(0.5 * pressure + 0.5 * very_high_wait_frac, 0.0, 1.0)
         if is_night:

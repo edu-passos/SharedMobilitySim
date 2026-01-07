@@ -1,5 +1,5 @@
-"""Purpose
--------
+"""calibrate_scales.py.
+
 Estimate normalization scales (A0, R0, C0, Q0) for the *normalized* client-satisfaction objective:
 
     J_t = wA * (unavailability / A0)

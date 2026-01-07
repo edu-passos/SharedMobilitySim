@@ -1,4 +1,4 @@
-"""bandit_param_arms.py
+"""bandit_param_arms.py.
 
 Episode-level Multi-Armed Bandit (UCB1) over a discrete grid of *planner parameter arms*.
 
