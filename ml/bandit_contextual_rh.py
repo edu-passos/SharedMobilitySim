@@ -9,10 +9,7 @@ import numpy as np
 from envs.porto_env import PortoMicromobilityEnv
 from sim.kpis import compute_episode_kpis
 
-
-# -----------------------------
-# Scenario application (same as your heuristic evaluator)
-# -----------------------------
+# Scenario application
 def apply_scenario(
     env: PortoMicromobilityEnv,
     *,
@@ -75,9 +72,7 @@ def make_param_arms(km_budgets: list[float], charge_fracs: list[float]) -> list[
     return arms
 
 
-# -----------------------------
 # Context extraction (from obs)
-# -----------------------------
 def context_from_obs(obs: dict[str, np.ndarray]) -> np.ndarray:
     """Return a compact feature vector x (d,).
 
@@ -134,9 +129,7 @@ def context_from_obs(obs: dict[str, np.ndarray]) -> np.ndarray:
     )
 
 
-# -----------------------------
 # LinUCB (disjoint model per arm)
-# -----------------------------
 class LinUCB:
     """Disjoint LinUCB.
 
@@ -187,9 +180,7 @@ class LinUCB:
         self.counts[a] += 1
 
 
-# -----------------------------
 # Episode runner (receding-horizon contextual bandit)
-# -----------------------------
 RELOC_BUDGET_KEY = "km_budget"
 CHARGE_BUDGET_KEY = "charge_budget_frac"
 
@@ -319,9 +310,7 @@ def run_episode(
     }
 
 
-# -----------------------------
 # Main
-# -----------------------------
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--config", default="configs/network_porto10.yaml")

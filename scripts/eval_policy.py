@@ -482,7 +482,8 @@ def main() -> None:
 
     print("\n--- Queue stability (Δqueue) ---")
     for name, s in summaries.items():
-        print(f"- {name}: dq_mean={s['queue_delta_mean']['mean']:.3f}, dq_p95={s['queue_delta_p95']['mean']:.3f}")
+        print(f"- {name}: dq_mean={s['dq_mean']['mean']:.3f}, dq_p95={s['dq_p95']['mean']:.3f}")
+
 
     print(f"\nSaved: {args.out}")
 
