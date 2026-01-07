@@ -21,7 +21,7 @@ class SimConfig:
     charge_rate: np.ndarray  # (N,) SoC/hour when plugged (e.g. 0.25 => +25%/h)
     battery_kwh: float  # kWh per vehicle @ 100% SoC
     energy_cost_per_kwh: float  # €/kWh
-    soc_min_depart: float = 0.00  # min SoC needed for a rental to start
+    soc_min_depart: float = 0.15  # min SoC needed for a rental to start
     reserve_plugged: bool = True  # vehicles plugged this tick are not rentable
 
 
