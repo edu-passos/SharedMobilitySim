@@ -67,7 +67,10 @@ def apply_scenario(
         return
 
     if scenario == "event_heavy":
-        env.events_matrix = env.events_matrix * float(event_scale)
+        E = env.events_matrix.astype(float)
+        E_scaled = 1.0 + float(event_scale) * (E - 1.0)
+        E_scaled = np.clip(E_scaled, 0.0, None)
+        env.events_matrix = E_scaled
         return
 
     raise ValueError(f"Unknown scenario '{scenario}'. Use: baseline, hotspot_od, hetero_lambda, event_heavy.")

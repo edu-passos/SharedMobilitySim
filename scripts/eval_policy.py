@@ -1,4 +1,4 @@
-"""eval_policies.py
+"""scripts.eval_policy.py
 
 Evaluation runner + controlled sweeps + scenarios.
 

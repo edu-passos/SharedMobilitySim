@@ -254,27 +254,27 @@ demand:
   base_lambda_per_dt: 0.35
 energy:
   chargers_per_station:
-    - 2
-    - 2
-    - 2
-    - 2
-    - 2
-    - 2
-    - 2
-    - 2
-    - 2
-    - 2
+    - 6
+    - 6
+    - 6
+    - 6
+    - 6
+    - 6
+    - 6
+    - 6
+    - 6
+    - 6
   charge_rate_soc_per_hour:
-    - 0.25
-    - 0.25
-    - 0.25
-    - 0.25
-    - 0.25
-    - 0.25
-    - 0.25
-    - 0.25
-    - 0.25
-    - 0.25
+    - 0.35
+    - 0.35
+    - 0.35
+    - 0.35
+    - 0.35
+    - 0.35
+    - 0.35
+    - 0.35
+    - 0.35
+    - 0.35
   battery_kwh_per_vehicle: 0.5
   energy_cost_per_kwh_eur: 0.2
 
