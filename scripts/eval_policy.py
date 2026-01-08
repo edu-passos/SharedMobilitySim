@@ -10,7 +10,6 @@ Policies supported:
 
 import argparse
 import json
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -86,7 +85,6 @@ def apply_scenario(
         return
 
     raise ValueError(f"Unknown scenario '{scenario}'. Use: baseline, hotspot_od, hetero_lambda, event_heavy.")
-
 
 
 def _run_episode(
@@ -483,7 +481,6 @@ def main() -> None:
     print("\n--- Queue stability (Δqueue) ---")
     for name, s in summaries.items():
         print(f"- {name}: dq_mean={s['dq_mean']['mean']:.3f}, dq_p95={s['dq_p95']['mean']:.3f}")
-
 
     print(f"\nSaved: {args.out}")
 

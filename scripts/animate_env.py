@@ -1,14 +1,12 @@
 import argparse
 import math
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import yaml
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import FancyArrowPatch
-import yaml
 
 from envs.porto_env import PortoMicromobilityEnv
 
@@ -82,7 +80,7 @@ def _tick_to_dayhour(t: int, dt_min: int) -> tuple[int, int]:
     return int(day), int(hour)
 
 
-def _aggregate_reloc_flows(plans: List[List[Tuple[int, int, int]]], N: int) -> np.ndarray:
+def _aggregate_reloc_flows(plans: list[list[tuple[int, int, int]]], N: int) -> np.ndarray:
     """Aggregate multiple reloc_plans into an NxN flow matrix (units moved)."""
     F = np.zeros((N, N), dtype=float)
     for plan in plans:
@@ -132,12 +130,12 @@ def main() -> None:
     args = ap.parse_args()
 
     # --- load YAML for station coords/labels ---
-    with open(args.config, "r", encoding="utf-8") as f:
+    with open(args.config, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
     lat = np.array(cfg["network"]["lat"], dtype=float)
     lon = np.array(cfg["network"]["lon"], dtype=float)
-    station_ids = cfg["network"].get("station_ids", [f"S{i+1}" for i in range(len(lat))])
+    station_ids = cfg["network"].get("station_ids", [f"S{i + 1}" for i in range(len(lat))])
 
     x, y = _normalize_xy(lon, lat)
     N = len(lat)
@@ -177,7 +175,7 @@ def main() -> None:
     reloc_km_series = np.zeros(max_steps, dtype=float)
     charge_eur_series = np.zeros(max_steps, dtype=float)
 
-    reloc_plan_series: List[List[Tuple[int, int, int]]] = []
+    reloc_plan_series: list[list[tuple[int, int, int]]] = []
 
     total_reward = 0.0
 
@@ -228,8 +226,7 @@ def main() -> None:
     ax.set_ylim(-0.05, 1.05)
 
     title = (
-        f"PortoMicromobilitySim | {args.scenario} | {args.hours}h | "
-        f"reloc={args.reloc}, charge={args.charge}, a={action.tolist()}"
+        f"PortoMicromobilitySim | {args.scenario} | {args.hours}h | reloc={args.reloc}, charge={args.charge}, a={action.tolist()}"
     )
     ax.set_title(title, fontsize=10)
 
@@ -241,11 +238,13 @@ def main() -> None:
     soc0 = soc_series[0]
     sizes0 = 80 + 420 * (fill0 / max(float(np.max(fill0)), 1e-9))
     sc = ax.scatter(
-        x, y,
+        x,
+        y,
         s=sizes0,
         c=soc0,
         cmap="RdYlGn",
-        vmin=0.0, vmax=1.0,
+        vmin=0.0,
+        vmax=1.0,
         edgecolors="k",
         linewidths=0.8,
         zorder=3,
@@ -255,14 +254,16 @@ def main() -> None:
     cbar.set_label("SoC (station avg)", fontsize=9)
 
     kpi_text = ax.text(
-        0.01, -0.12, "",
+        0.01,
+        -0.12,
+        "",
         transform=ax.transAxes,
         fontsize=9,
         family="monospace",
     )
 
     # arrows are artists we update each frame
-    arrow_artists: List[FancyArrowPatch] = []
+    arrow_artists: list[FancyArrowPatch] = []
 
     def _clear_arrows():
         nonlocal arrow_artists
@@ -312,7 +313,8 @@ def main() -> None:
             xj, yj = x[j] - shrink * dx / L, y[j] - shrink * dy / L
 
             arr = FancyArrowPatch(
-                (xi, yi), (xj, yj),
+                (xi, yi),
+                (xj, yj),
                 arrowstyle="-|>",
                 mutation_scale=10,
                 linewidth=lw,

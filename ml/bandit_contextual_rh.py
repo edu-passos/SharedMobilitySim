@@ -9,6 +9,7 @@ import numpy as np
 from envs.porto_env import PortoMicromobilityEnv
 from sim.kpis import compute_episode_kpis
 
+
 # Scenario application
 def apply_scenario(
     env: PortoMicromobilityEnv,
