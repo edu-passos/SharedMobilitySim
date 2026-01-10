@@ -201,6 +201,19 @@ Be careful with countable and uncountable nouns
   \end{itemize}
 }
 
+This project focuses on the daily and strategic management of electric scooter fleets, aiming to minimize operating costs while maximizing the level of service to users, in both quantity and quality. This includes planning redistribution by truck, charging/recharging policies, designing user incentives to reduce imbalances, and demand-prediction algorithms. Practical applications include shared system administrators and researchers, mobility authorities, and smart cities.
+
+The simulation aims to replicate the operation of a shared micromobility system throughout the day, considering variables such as demand patterns, vehicle availability, battery levels, and recharging requirements. It will represent not only users requesting and completing trips, resulting in the movement of shared mobility vehicles throughout the city, but also on-site operators overseeing the shared mobility vehicles and respective stations, and performing fleet relocations to guarantee its most efficient distribution throughout the city without compromising the users' experience.
+
+By simulating the interactions between these entities, the objective is to evaluate and compare different balancing strategies under realistic urban conditions. The simulation will make it possible to measure how each approach affects the service through Key Performance Indicators (KPIs), in other words, measures and benchmarks, as will be described later. Examples include quality (vehicle availability and waiting time), operational efficiency (costs and distance traveled during redistribution), and system sustainability (energy consumption and battery utilization). Furthermore, another area of exploration could be to study the effect of limited battery autonomy and charging times on overall fleet performance.
+
+Ultimately, the simulation provides a controlled and flexible environment to test algorithms and management policies. It allows for the resolution of several problems, such as identification of bottlenecks, the quantification of trade-offs between cost and service quality, and the exploration of optimal or near-optimal strategies to maintain a balanced and efficient shared mobility system.
+
+The goal of the simulation problem is to identify which actions and strategies maximize fleet utilization, improve service quality, and minimize operational inefficiency. This will be done through modeling and analyzing the dynamics of a shared electric vehicle fleet within an urban environment in a certain spatial and temporal context. The focus will be on studying the imbalance in vehicle distribution caused by uneven and time-dependent demand: some areas experience shortages of available vehicles, while others accumulate unused ones.
+
+The eventual real-world manifestation of this process would be to support decision-making in managing shared electric vehicle fleets by evaluating different operational strategies and their impact on system performance. As such, and to pursue the defined goal, the model aims to simulate the system under varying researcher-defined strategies, such as vehicle relocation and charging policies, and to measure KPIs including unmet demand, vehicle availability, energy consumption, and operational costs.
+
+
 \section{Related Work}
 
 \textit{
@@ -212,6 +225,13 @@ Be careful with countable and uncountable nouns
     \item Discussion and critical analysis.
   \end{itemize}
 }
+
+The problem falls within the field of Urban Mobility and, more specifically, the subfield of Shared Micromobility and Fleet Management. It addresses how cities can efficiently manage and balance fleets of shared electric vehicles to meet fluctuating demand patterns throughout the day. As a result, and similarly to many of the modelling projects that seek to study the real world, this issue lies at the intersection of several disciplines.
+
+From the perspective of transportation science, the problem concerns the modeling of human movement patterns and travel demand within urban environments. It involves understanding how people choose modes of transport, how their choices change with time of day, weather, or location, and how these behaviors influence the spatial distribution of shared vehicles.
+
+In the area of optimization and operations research, the challenge translates into a set of complex decision problems. These include vehicle rebalancing (determining how and when to move vehicles from low-demand to high-demand areas), routing and scheduling of redistribution trucks, and the design of user incentives to encourage self-balancing behavior. Such problems are often formulated as variants of the Vehicle Routing Problem (VRP), capacitated network flow models, or stochastic optimization problems. Furthermore, the possibility of incorporating machine learning brings a predictive and adaptive layer to the system.
+
 
 \section{Materials and Methods}
 
@@ -229,6 +249,82 @@ Be careful with countable and uncountable nouns
     \item Solution design
   \end{itemize}
 }
+
+
+\subsection{System Model}
+The simulation model comprises several interactions between entities:
+\begin{enumerate}
+  \item \textbf{Station}: Use to hold vehicles and act as a charging infrastructure. Properties include capacity (slots), number of chargers, and distance/travel time to other stations.
+  \item \textbf{Vehicle}: Moves between stations and consumes/charges energy. Tracked by its Battery State of Charge (SoC).
+  \item \textbf{Customers}: Represent demand. They are characterized by arrival rates (people per time interval) and origin-destination probabilities.
+  \item \textbf{Environment}: External factors affecting the system, such as diurnal variation (time of day), weather factors, and special events (e.g., concerts).
+  \item \textbf{Operator}: Represents the control plan using policies for relocation, charging, and special user incentives.
+\end{enumerate}
+
+\subsection{System Variables}
+The system defines \textbf{Exogenous Variables} which are not controlled by the operator, including demand rate (Poisson arrival intensity), origin-destination probability matrix, weather influence, and travel times.
+
+\textbf{Endogenous Variables} describe the system's internal state, such as the number of vehicles available at each station, average battery SoC, number of waiting customers, and ongoing trips.
+
+The performance is measured by \textbf{Output Variables (KPIs)}, as detailed in Table \ref{tab:kpis}.
+
+\begin{table}[htbp]
+  \caption{Key Performance Indicators}
+  \begin{center}
+    \begin{tabular}{|l|p{3.5cm}|l|}
+      \hline
+      \textbf{KPI} & \textbf{Meaning} & \textbf{Goal} \\
+      \hline
+      Availability & Fraction of stations with at least one vehicle & Maximize \\
+      \hline
+      Unmet demand & Number of users who could not find a scooter & Minimize \\
+      \hline
+      Standard deviation & Measure of imbalance across the network & Minimize \\
+      \hline
+      Scooters in use & Vehicles currently rented or moving & Maximize \\
+      \hline
+      Idle station time & Time periods when a station has no activity & Minimize \\
+      \hline
+      Relocation distance & Total distance traveled during rebalancing (km) & Minimize \\
+      \hline
+      Energy cost & Cumulative electricity cost for charging & Minimize \\
+      \hline
+      Success rate & Ratio of served users to total demand & Maximize \\
+      \hline
+    \end{tabular}
+  \label{tab:kpis}
+  \end{center}
+\end{table}
+
+\subsection{Decision Criteria}
+System performance is evaluated through a multi-objective score that combines Service quality, Operational cost, and Workload. Formally, policies are benchmarked using:
+\begin{equation}
+  Score = \alpha \cdot Q_{uality} + \beta \cdot C_{ost} + \gamma \cdot W_{orkload}
+\end{equation}
+where $\alpha$, $\beta$, and $\gamma$ are policy weights.
+
+Baseline policies include:
+\begin{itemize}
+  \item \textbf{Greedy Rebalancing}: Moving scooters from overfilled stations ($x > 0.8C$) to depleted ones ($x < 0.2C$).
+  \item \textbf{Nightly Uniform Rebalancing}: Resetting stations to a uniform fill level ($\approx 60\%$) at 02:00.
+  \item \textbf{Random Demand Scenario}: A neutral benchmark without relocation.
+\end{itemize}
+
+\subsection{Data Requirements}
+The project relies on synthetic and open geographical data to represent a small-scale micromobility system in an urban environment. We use OpenStreetMap (OSM) via the OSMnx library to extract the road/bike network for the city of Porto. A synthetic generation of 15 representative micromobility stations is used, with distances computed from the OSM graph.
+
+Assumptions for the experimental setup include:
+\begin{itemize}
+  \item 15 stations approximating a city-center zone (1-3 km between nodes).
+  \item Constant average speed of 15 km/h.
+  \item Customer arrivals follow Poisson processes with mean rate $\lambda = 0.8$ per 5 minutes ($\sim 9.6$ per hour).
+  \item Each station has 12 parking slots.
+  \item Vehicles are electric scooters with 0.5 kWh capacity and linear charging.
+\end{itemize}
+
+\subsection{Tools}
+The simulation is implemented in Python. \textbf{NumPy} is used for discrete-time system simulation. \textbf{Matplotlib/Seaborn} are used for KPI plots and time-series analysis. \textbf{NetworkX/OSMnx} are used to build and analyze the station network graph.
+
 
 \section{Results and Discussion}
 
