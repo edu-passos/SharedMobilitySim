@@ -1,0 +1,268 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+
+\begin{document}
+
+\title{
+  Shared Mobility Simulation Report\\
+  {\footnotesize \textsuperscript{*}Note: Sub-titles can be placed here}
+}
+
+\author{
+  \IEEEauthorblockN{Eduardo Passos}
+  \IEEEauthorblockA{
+    \textit{MSc in Artificial Intelligence} \\
+    \textit{University of Porto}\\
+    Porto, Portugal \\
+    up202205630@up.pt
+  }
+  \and
+  \IEEEauthorblockN{Guilherme Silva}
+  \IEEEauthorblockA{
+    \textit{MSc in Artificial Intelligence} \\
+    \textit{University of Porto}\\
+    Porto, Portugal \\
+    up202205298@up.pt
+  }
+  \and
+  \IEEEauthorblockN{Valentina Cadime}
+  \IEEEauthorblockA{
+    \textit{MSc in Artificial Intelligence} \\
+    \textit{University of Porto}\\
+    Porto, Portugal \\
+    up202206262@up.pt
+  }
+}
+
+
+\maketitle
+
+\begin{abstract}
+
+\end{abstract}
+
+\begin{IEEEkeywords}
+
+\end{IEEEkeywords}
+
+
+% TODO: Remove this section before submission
+\section*{Useful Rules:}
+
+\textbf{The 3-part rule: Introduction, Development, Conclusion}
+\begin{itemize}
+  \item Chapter: 3+ sections
+  \item Sections: 3+ paragraphs
+  \item Paragraphs: 3+ sentences
+\end{itemize}
+
+\textbf{The section-separation rule:}
+\begin{itemize}
+  \item If the content of a section fits in more subsections, the division should yield at least 2 subsections. Single subsections reflect bad content organization.
+\end{itemize}
+
+\textbf{Single-paragraph rule:}
+\begin{itemize}
+  \item Avoid using single paragraphs in the body of a section. A well-designed section will have at least 3 paragraphs (recall the 3-part rule)
+  \item \textbf{Exception - When to use single paragraphs?}
+  \begin{itemize}
+    \item Abstract (if the size is limited, e.g. as in conference papers)
+    \item Conclusion (the same as above)
+    \item As an introduction to chapters or sections
+  \end{itemize}
+\end{itemize}
+
+\textbf{Single-sentence-paragraph rule:}
+\begin{itemize}
+  \item Avoid using single-sentence paragraphs. A well-designed paragraph will have at least 3 sentences (recall the 3-part rule)
+  \item \textbf{Exception - When to use single-sentence paragraphs? To introduce:}
+  \begin{itemize}
+    \item Figures
+    \item Tables
+    \item Lists
+    \item Algorithms
+    \item Equations
+    \item Other non-textual elements
+  \end{itemize}
+\end{itemize}
+
+\textbf{Avoid too much empty space:}
+\begin{itemize}
+  \item Single-word-ending paragraphs
+  \item Whenever possible, try and fill the paragraph width in the last line of the paragraph
+  \item Whenever possible, try and fill the paragraph width when adding new figures and tables
+  \item Preferably, place figures and tables either at the top or the bottom of the page
+  \item Graphic elements in the middle of the page usually leave much empty space
+\end{itemize}
+
+\textbf{Figure vs. figure}
+\begin{itemize}
+  \item Generally, elements such as figures, tables, and equations, are whenever referring to a specific element in the text, are written with the first letter capitalized, followed by the number of the element, e.g. "As depicted in Figure 5, …"
+  \item When referring to a figure generically, without its number, it is not capitalized, e.g. "The figure below depicts the proposed architecture…", e.g. "…, as depicted in figures 5-7."
+  \item The same is valid for tables and equations. Consistency is key!
+\end{itemize}
+
+\textbf{State of the art vs. state-of-the-art}
+\begin{itemize}
+  \item Some compound nouns can also be used as adjectives, in which case they're written with hyphens, e.g. "This chapter presents the state of the art in AI.", e.g., "The state-of-the-art techniques are detailed in the next section.", e.g. "Data will be collected in real time.", e.g. "Real-time mechanisms support data exchange in our system."
+\end{itemize}
+
+\textbf{Numeric citations}
+\begin{itemize}
+  \item The numeric citations (e.g. [3] or [11-18] are generally used in conference papers due to space limitations) (see IEEE paper formats)
+  \item Do not start a sentence with a numeric citation. It doesn't make sense!e.g. "[3] presents an empirical study on ML applied to agriculture."e.g. "Silva (2019) presents an empirical study on ML applied to ..." \textbf{(better!)}
+  \item Hint: when the numeric citation is deleted, the text should still make sense!
+  \begin{itemize}
+    \item e.g. "In [3], authors present an empirical study on ML applied to agriculture." (rephrase!)
+    \item e.g. "Authors present an empirical study on ML applied to agriculture [3]."
+  \end{itemize}
+\end{itemize}
+
+\textbf{Formal documents}
+\begin{itemize}
+  \item A dissertation should be written with proper and adequate language, should be correct and objective, and should avoid bias
+  \item Avoid contractions, such as:
+  \begin{itemize}
+    \item Don't $\rightarrow$ do not
+    \item Doesn't $\rightarrow$ does not
+    \item That's $\rightarrow$ that is
+    \item It's $\rightarrow$ it is
+    \item Won't $\rightarrow$ will not
+    \item And others
+  \end{itemize}
+  \item Prefer these constructions instead:
+  \begin{itemize}
+    \item Like $\rightarrow$ such as (e.g. ``characteristics such as'')
+    \item So, \dots $\rightarrow$ Therefore (e.g. ``Therefore, it is plausible to\dots'')
+    \item On the other hand, \dots $\rightarrow$ make sure you start with ``On the one hand, \dots . On the other hand, \dots .''
+  \end{itemize}
+\end{itemize}
+
+\textbf{Work vs. works}
+
+Be careful with countable and uncountable nouns
+\begin{itemize}
+  \item \textbf{Works} (countable) -- self-contained things, as works of art or structures in engineering (e.g. ``The works by Van Gogh'' or bridges, tunnels, etc.)
+  \item \textbf{Work} (uncountable) -- the body of knowledge in science is one only, and every scientist contributes a piece to enrich it
+  \begin{itemize}
+    \item e.g. ``The pieces of work reported by both Mendes (2024) and Machado (2019) suggest that \dots''
+    \item Prefer to use ``Conclusions and future work'' instead
+  \end{itemize}
+  \item Countable alternatives to ``work'':
+  \begin{itemize}
+    \item ``Carvalho and colleagues carried out a series of studies to demonstrate their hypothesis [5].''
+    \item ``Different efforts are reported in the literature on this subject [2, 7, 9-11].''
+    \item ``Some empirical experiments were performed, which corroborate that idea [18, 21].''
+    \item ``Evaluation methods are also proposed by other authors (Carvalho, 2017; Mendes et al, 2025).''
+  \end{itemize}
+  \item In academic writing, ``research'' and ``data'' are two uncountable nouns that are notoriously difficult to use correctly. Never add ``s'' to pluralize ``research'' or ``data''. (Note that the word ``researches'' is only correct when used as the third-person singular of the verb ``to research''.)
+\end{itemize}
+
+\textbf{Ethical issues:}
+\begin{itemize}
+  \item Plagiarism and self-plagiarism
+  \begin{itemize}
+    \item Plagiarism often involves using someone else's words or ideas without proper citation, but you can also plagiarize yourself. Self-plagiarism means reusing work that you have already published or submitted for a class
+  \end{itemize}
+  \item Figure, data, and other elements
+  \begin{itemize}
+    \item The use of someone else's figures and art creation implies proper permissions to be used ``as is''
+    \item Citation is not enough!
+    \begin{itemize}
+      \item ``Taken from Author (year)'' or ``borrowed from Author (year) $\rightarrow$ requires authorization
+      \item ``Adapted from Author (year)'' $\rightarrow$ it is your own interpretation and requires no authorization
+      \item Alternatively, you can include a ``Source:\dots'' field in the Figure caption
+    \end{itemize}
+  \end{itemize}
+\end{itemize}
+
+\clearpage
+
+\section{Introduction}
+\textbf{\texttt{[PLACEHOLDER]}} Current shared mobility systems face significant challenges in balancing demand and supply. This report explores these challenges and proposes simulation-based solutions \cite{exampleRef}.
+
+\textit{
+  \textbf{TODOs:}
+  \begin{itemize}
+    \item Context
+    \item Problem statement. Clearly define the research question or technical challenge with a precise problem description and formal representations
+    \item Motivation (to solve the problem) / significance
+    \item Aim and goals
+    \item Aim: the main expected outcome of this research project (the big picture!)
+    \item Goals: specific objectives to be accomplished
+    \item Research questions
+    \item Hypotheses
+    \item Document/paper structure
+  \end{itemize}
+}
+
+\section{Related Work}
+
+\textit{
+  \textbf{TODOs:}
+  \begin{itemize}
+    \item Review of existing literature.
+    \item Relevant concepts and studies.
+    \item Summarize background and related work to highlight gaps addressed by the project.
+    \item Discussion and critical analysis.
+  \end{itemize}
+}
+
+\section{Materials and Methods}
+
+\textit{
+  \textbf{TODOs:}
+  \begin{itemize}
+    \item Problem formalization: what to solve?
+    \item Materials:
+    \begin{itemize}
+      \item Data
+      \item Tools
+      \item Techniques
+    \end{itemize}
+    \item Methods: how to solve it?
+    \item Solution design
+  \end{itemize}
+}
+
+\section{Results and Discussion}
+
+\textit{
+  \textbf{TODOs:}
+  \begin{itemize}
+    \item Methods to collect results
+    \item Result presentations (graphs, charts, diagrams, tables,
+    associations)
+    \item Critical discussion of bad results
+    \item Critical discussion of good results
+    \item Focus on counter-intuitive results
+    \item Focus on additional results (other than the rest of the literature)
+  \end{itemize}
+}
+
+\section{Conclusion and Future Work}
+\textit{
+  \textbf{TODOs:}
+  \begin{itemize}
+    \item Remark the conclusions drawn from the related work and gap analysis.
+    \item Remark problem and goals.
+    \item Remark the main results and findings.
+    \item Summarize the main contributions.
+    \item Scientific
+    \item Application
+    \item Technological
+    \item Future work
+    \item Further developments (how to improve the current work)
+    \item Future opportunities / R\&D paths (spin-off projects/problems of the current work)
+  \end{itemize}
+}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
