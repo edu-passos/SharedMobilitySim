@@ -442,14 +442,9 @@ The experimental simulation was implemented in \textbf{Python}, using the follow
 \end{itemize}
 
 \subsection{\label{sec:environ_spec}External Data}
-The simulation environment is grounded in realistic topological data. The road network is extracted using OSMnx~\cite{https://doi.org/10.1111/gean.70009} for the city of Porto, Portugal, as if we're riding a bike, as it is the most similar mode of transport to electric scooters. For the experimental setup in this project, the network is then simplified to a graph of $N=10$ randomly selected stations (nodes) within the city limits, separate from each other by at least 500 meters. Each node is connected to every other node, with the edges retaining the shortest-path distance between them. This is done to abstract away the minute details of routing, which provide little meaning to the problem at hand, while preserving realistic inter-station distances.
+The simulation environment is grounded in realistic topological data. The road network is extracted using OSMnx~\cite{https://doi.org/10.1111/gean.70009} for the city of Porto, Portugal, as if we're riding a bike, as it is the most similar mode of transport to electric scooters. For the experimental setup in this project, the network is then simplified to a graph of $N=10$ randomly selected stations (nodes) within the city limits, separate from each other by at least 500 meters. Each node is connected to every other node, with the edges retaining the shortest-path distance between them. This is done to abstract away the minute details of routing, which provide little meaning to the problem at hand, while preserving realistic inter-station distances. The travel time between stations is derived from these distances, assuming a constant average speed of 15 km/h, typical for shared electrical scooters in urban settings, and within the speed limits defined in Portuguese traffic legislation \cite{DL102B2020}.
 
-The travel distance and time information are stored in a configuration file, which is loaded at the start of each simulation episode. Additionally, other simulation parameters are defined in the configuration file, including station capacities
-
-% TODO: Add this somewhere:
-% assuming a constant average speed of 15 km/h, typical for shared electrical scooters in urban settings, and within the speed limits defined in Portuguese traffic legislation \cite{DL102B2020}.
-
-
+As the configuration of the simulation environment r
 
 \subsection{Solution Design and Experimental Setup}
 
