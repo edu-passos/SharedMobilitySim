@@ -4,6 +4,7 @@
 \usepackage{algorithmic}
 \usepackage{graphicx}
 \usepackage{textcomp}
+\usepackage{threeparttable}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
 
@@ -11,6 +12,7 @@
 
 \title{
   Shared Mobility Simulation Report\\
+  % TODO: Subtitle probably shouldn't be used. Check if the IEEE template is really this one
   {\footnotesize {A detailed analysis of agents to optimize operational cost and service}}
 }
 
@@ -50,7 +52,7 @@ The following report involves the creation of a realistic simulation of an urban
 \end{abstract}
 
 \begin{IEEEkeywords}
-Simulation, scooter fleet management, optimization, data analysis
+  Modelling, optimization, reinforcement learning, scooter fleet management, simulation
 \end{IEEEkeywords}
 
 \section{Introduction}
@@ -102,25 +104,9 @@ In the area of optimization and operations research, the challenge translates in
 
 \section{Materials and Methods}
 
-\textit{
-  \textbf{TODOs:}
-  \begin{itemize}
-    \item Problem formalization: what to solve?
-    \item Materials:
-    \begin{itemize}
-      \item Data
-      \item Tools
-      \item Techniques
-    \end{itemize}
-    \item Methods: how to solve it?
-    \item Solution design
-  \end{itemize}
-}
-
-
 The system is formalized as an agent-based discrete-time simulation shaped by the interactions between a single operator (the agent), the entities, and finite network resources. The agent acts by controlling specific parameters that influences either scooter relocation and charging. The primary entities are the customers and the vehicle fleet. Customers are modeled as transient entities represented by stochastic arrival events, while the fleet consists of vehicle counts circulating between nodes. These entities interact with stations, which function as passive resources within the system. Stations are characterized by static attributes such as geographic location, parking capacity (slots), and charger availability, effectively constraining the flow of entities by limiting parking and charging capcities.
 
-The simulation operates within a dynamic environment, whose specific instantiation for the experiments conducted is defined in \ref{sec:environ_spec}, subject to external variations, including time-of-day effects, weather conditions, and special events. These environmental factors, combined with the stochastic user demand, constitute the \textit{uncontrollable exogenous variables}, corresponding to the probabilistic part of the system, as detailed in \ref{sec:sim_dynamics}.
+The simulation operates within a dynamic environment, whose specific instantiation for the experiments conducted is defined in \ref{tab:env-configs}, subject to external variations, including time-of-day effects, weather conditions, and special events. These environmental factors, combined with the stochastic user demand, constitute the \textit{uncontrollable exogenous variables}, corresponding to the probabilistic part of the system, as detailed in \ref{sec:sim_dynamics}.
 
 The instantaneous status of the system is captured by state variables, such as the number of vehicles, State of Charge (SoC) metrics, and the size of user queues at each station. These metrics correspond to the \textit{endogenous variables} formally defined in \ref{sec:sim_state}. The evolution of this state is driven by discrete events, including customer arrivals, trip completions, and operator interventions, which trigger specific activities including vehicle rental, fleet relocation, and battery charging. The infrastructure parameters and resource limits that bound these activities form the \textit{controllable exogenous variables}, explored in \ref{sec:sim_config}. Additionally, the specific relocation and charging plans built by the operational policies at each time step are also controllable exogenous variables, as they are generated externally to the simulation dynamics, by the agent.
 
@@ -132,12 +118,13 @@ The simulation environment is characterized by a set of controllable exogenous p
   \item $C \in \mathbb{N}^N$: Vector of station capacities, where $C_i$ is the maximum number of vehicles allowed at station $i$.
   \item $\mathcal{T} \in \mathbb{R}^{N \times N}$: Travel time matrix, where $\tau_{ij}$ represents the effective transit time between station $i$ and $j$.
   \item $\mathcal{D} \in \mathbb{R}^{N \times N}$: Distance, where $d_{ij}$ represents the distance (km) between station $i$ and $j$.
-  \item $K \in \mathbb{N}^N$: Vector of station charging capacities (number of plugs) at each node.
+  \item $K \in \mathbb{N}^N$: Vector of station chargers at each node.
   \item $\rho \in \mathbb{R}^N$: Charging rate vector, where $\rho_i$ denotes the SoC gain per hour at station $i$.
+  % TODO: Are we sure this is total battery per vehicle? What does that mean?
   \item $B$: Total battery capacity per vehicle (kWh).
   \item $c_{energy}$: Unit cost of energy (€/kWh).
-  \item $s_{min}$: Minimum SoC threshold required for a vehicle to be eligible for rental.
-  \item $\gamma_{res} \in \{0,1\}$: Operation policy parameter indicating if vehicles connected to the grid should be reserved (unavailable for rental) during the active charging time step.
+  \item $s_{min}$: Minimum SoC threshold required for a vehicle to be eligible for rental. Always set to 0.15 (15\%).
+  \item $\gamma_{res} \in \{0,1\}$: Operation policy parameter indicating if vehicles connected to the grid should be reserved (unavailable for rental) during the active charging time step. For the experiments, this is always set to true.
 \end{itemize}
 
 \subsection{\label{sec:sim_state}Simulation State}
@@ -156,10 +143,16 @@ The state transition $\mathcal{S}_t \rightarrow \mathcal{S}_{t+1}$ occurs via th
 
 \subsubsection{Demand and Departures}
 % TODO: Review math symbol notation for number of served users
-Demand arrivals $\mathbf{A}_t$ follow a non-homogeneous Poisson process. A vehicle at station $i$ is rentable only if it satisfies the minimum SoC threshold ($s_{i,t} > s_{min}$). As such, the number of served users, $d_{out}^i$, is limited by the rentable stock.
+Demand arrivals $\mathbf{A}_t$ follow a non-homogeneous Poisson process, based on the effective arrival rate:
+\begin{equation}
+  \lambda_{i,t}^{eff} = \lambda_i \cdot f_{time}(t) \cdot f_{weather}(t) \cdot f_{event}(t)
+\end{equation}
+where $\lambda_i$ is the base arrival rate at station $i$, and $f_{(\cdot)}$ are multiplicative factors (in $[0,1]$) modeling time-of-day, weather, and special event influences.
+
+A vehicle at station $i$ is rentable only if it satisfies the minimum SoC threshold ($s_{i,t} > s_{min}$). As such, the number of served users, $d_{out}^i$, is limited by the rentable stock.
 User destinations are sampled from the origin-destination probability matrix $P \in \mathbb{R}^{N \times N}$, where $p_{ij}$ represents the probability of a user departing from station $i$ terminating their trip at station $j$. To simplify the simulation and focus on rebalancing dynamics rather than complex routing patterns, we assume a uniform distribution:
 \begin{equation}
-    p_{ij} = \frac{1}{N}, \quad \forall j \in \{1, \dots, N\}
+  p_{ij} = \frac{1}{N}, \quad \forall j \in \{1, \dots, N\}
 \end{equation}
 In other words, a user picking up a vehicle at any station is equally likely to ride to any other station in the network. When a user departs, a vehicle is removed from $\mathbf{x}_t$, and a trip event is pushed to the trip heap $\Psi$.
 
@@ -181,7 +174,7 @@ where $k_{actual}$ is the actual number of vehicles relocated from station $i$ t
 \subsubsection{Charging Logic}
 Charging is applied to idle vehicles connected to plugs according to a charging plan. The number of charging vehicles $k^{plug}_{i,t}$ is constrained by station stock $x_{i,t}$ and available chargers $K_i$. The energy mass update is:
 \begin{equation}
-    m_{i,t} \leftarrow m_{i,t} + k^{plug}_{i,t} \cdot \rho_i \cdot \Delta t
+  m_{i,t} \leftarrow m_{i,t} + k^{plug}_{i,t} \cdot \rho_i \cdot \Delta t
 \end{equation}
 
 
@@ -193,8 +186,7 @@ The goal is to find a control policy $\pi(\mathcal{S}_t) \rightarrow \mathcal{A}
   J_t = w_{U} \frac{U_t}{U_s} + w_{R} \frac{R_t}{R_s} + w_{C} \frac{C_t}{C_s} + w_{Q} \frac{Q_t}{Q_s}
 \end{equation}
 
-% TODO: Introduction to the cost components might need readjustment according to what is done with the table of KPIs below
-The cost components correspond to the following system metrics:
+The cost components correspond to the Key Performance Indicators (KPIs) used to evaluate system performance. Naturally,
 \begin{itemize}
   \item $U_t$: \textbf{Unavailability Rate}. Defined as $1 - \frac{served\_new_t}{demand_t}$, representing the proportion of new arrivals that could not be served immediately.
   \item $R_t$: \textbf{Relocation Distance}. The total kilometers traveled by the operator's fleet to rebalance vehicles during step $t$.
@@ -204,46 +196,15 @@ The cost components correspond to the following system metrics:
 
 The coefficients $w_{(\cdot)}$ represent the importance weights of each objective. To ensure numerical stability and comparable magnitudes between disparate units (ratios, kilometers, Euros, and user counts), each term is normalized by a baseline scale factor ($U_s, R_s, C_s, Q_s$).
 
-% TODO: Update KPIs according to the ones we are actually using or remove if this is redundant
-% The performance is measured by \textbf{Output Variables (KPIs)}, as detailed in Table \ref{tab:kpis}.
-
-% \begin{table}[htbp]
-%   \caption{Key Performance Indicators}
-%   \begin{center}
-%     \begin{tabular}{|l|p{3.5cm}|l|}
-%       \hline
-%       \textbf{KPI} & \textbf{Meaning} & \textbf{Goal} \\
-%       \hline
-%       Availability & Fraction of stations with at least one vehicle & Maximize \\
-%       \hline
-%       Unmet demand & Number of users who could not find a scooter & Minimize \\
-%       \hline
-%      Standard deviation & Measure of imbalance across the network & Minimize \\
-%       \hline
-%       Scooters in use & Vehicles currently rented or moving & Maximize \\
-%       \hline
-%       Idle station time & Time periods when a station has no activity & Minimize \\
-%       \hline
-%       Relocation distance & Total distance traveled during rebalancing (km) & Minimize \\
-%       \hline
-%       Energy cost & Cumulative electricity cost for charging & Minimize \\
-%       \hline
-%       Success rate & Ratio of served users to total demand & Maximize \\
-%       \hline
-%    \end{tabular}
-%  \label{tab:kpis}
-%  \end{center}
-%\end{table}
-
 \subsection{Methods}
 
-With the creation and formalization of the simulation environment, it is important to concretely describe the interactions between the agent and the system. However, a distinction must first be made between \textit{operation policies} (or planners) and \textit{control policies} (learned policies), as they represent connected, but distinct layers of decision-making within the system, and the similar terminology can lead to confusion.
+With the creation and formalization of the simulation environment, it is important to concretely describe the interactions between the agent and the system. However, a distinction must first be made between \textit{operation policies} (or planners) and \textit{control policies} (learned policies). They represent connected but distinct layers of decision-making within the system, resulting in their similar terminology leading to confusion. To solve this, a renaming of the former was made.
 
 \subsubsection{Operation Policies vs. Control Policies}
 
 Scooter relocation and charging strategies, with which the agent intervenes in the system, take the form of a list of movements of $k$ scooters between station $i$ and $j$, and the number of scooters to be charged at each station, respectively. These plans are generated by algorithms referred to as \textit{operation policies}, but more distinctly as \textit{planners}. The planners are heuristic algorithms with explicitly defined rules, in contrast to \textit{control policies} learned through Reinforcement Learning (RL) techniques, which adapt based on experience and feedback from the environment, and map observations (system states) to actions.
 
-Furthermore, the agent's action vector $\mathbf{a}_t = [a_0, a_1, a_2, a_3] \in [0,1]^4$. dictates the parameters used by the planners to generate these relocation and charging plans. Therefore, although the generated plans directly affect system behavior, they are not an independent control policy. Instead, they represent an intermediate abstraction layer that heuristically (and deterministically) translates the agent's actions into executable interventions in the environment. As the decision-making authority and optimization objective remain with the agent's learned control policy, this renaming separates the two concepts. It clarifies that planners are not granted the same level of control, even though they derive their actions from the agent's outputs and may appear similar at a nomenclatural level.
+Furthermore, the agent's action vector $\mathbf{a}_t = [a_0, a_1, a_2, a_3] \in [0,1]^4$. contains the parameters used by the planners to generate these relocation and charging plans. Therefore, although the generated plans directly affect system behavior, they are not an independent control policy. Instead, they represent an intermediate abstraction layer that heuristically (and deterministically) translates the agent's actions into executable interventions in the environment. As the decision-making authority and optimization objective remain with the agent's learned control policy, this renaming separates the two concepts. It clarifies that planners are not granted the same level of control, even though they derive their actions from the agent's outputs and may appear similar at a nomenclatural level.
 
 \subsubsection{\label{sec:agent_env}Agent-Environment Interaction}
 
@@ -251,51 +212,45 @@ The simulation environment's design, for better modularity and separation of con
 
 On the agent's actions, the previously explained abstraction from concrete plans to normalized parameters is crucial. It generalizes and simplifies the agent's decision-making process, allowing it to focus on high-level strategy rather than low-level operational details, enabling the use of continuous control algorithms that can efficiently explore and optimize within this bounded action space.
 
-As a result, the overall interaction loop at each time step $t$ is as follows: the agent selects an action $\mathbf{a}_t$ according to its control policy $\pi(\mathcal{S}_t)$, either including the system state $\mathcal{S}_t$ as input or not, as will be detailed in \ref{}. Each of the four components of the action vector is mapped to the specific parameters of the relocation and charging planners being used, which generate the respective plans. These plans are executed within the simulation environment, leading to a state transition to $\mathcal{S}_{t+1}$, and the agent receives a reward based on the defined objective function. This loop continues until the end of the simulation horizon, allowing the agent to learn and adapt its control policy over time.
+As a result, the overall interaction loop at each time step $t$ is as follows: the agent selects an action $\mathbf{a}_t$ according to its control policy $\pi(\mathcal{S}_t)$, either including the system state $\mathcal{S}_t$ as input or not, as will be detailed in \ref{sec:agents}. Each of the four components of the action vector is mapped to the specific parameters of the relocation and charging planners being used, which generate the respective plans. These plans are executed within the simulation environment, leading to a state transition to $\mathcal{S}_{t+1}$, and the agent receives a reward based on the defined objective function. This loop continues until the end of the simulation horizon, allowing the agent to learn and adapt its control policy over time.
 
 \subsubsection{Planners Implemented}
 
 \paragraph{Relocation Planners}
 
-% TODO: Actions don't define stuff in budgeted relocation and slack charging, I don't know where the values are coming from.
 \begin{itemize}
-  \item \textbf{Greedy Relocation}: Identifies surplus stations (fill ratio $> \text{high}$) and deficit stations (fill ratio $< \text{low}$), then iteratively moves vehicles to balance toward a target fill ratio. Donor stations are prioritized by proximity. The action components map to: $a_0 \rightarrow \text{low} \in [0.1, 0.3]$ and $a_1 \rightarrow \text{high} \in [0.6, 0.9]$, $a_2 \rightarrow \text{target} \in [0.4, 0.8]$.
-  \item \textbf{Budgeted Relocation}: Extends greedy logic with a hard constraint on total relocation distance ($\text{km\_budget}$), explicitly capping operational costs per time step. The budget is derived from $a_2 \in [0,1]$, mapped to $[10, 50]$ km. This prevents excessive redistribution in cost-sensitive scenarios.
+  \item \textbf{Greedy Relocation}: Identifies stations with surplus of scooters (fill ratio $> \texttt{high}$) and deficit stations (fill ratio $< \texttt{low}$), then iteratively moves vehicles to balance toward a \texttt{target} fill ratio. Donor stations are prioritized by proximity. The action components map to: $a_0 \rightarrow \texttt{low} \in [0.1, 0.3]$ and $a_1 \rightarrow \texttt{high} \in [0.6, 0.9]$, $a_2 \rightarrow \texttt{target} \in [0.4, 0.8]$.
+  \item \textbf{Budgeted Relocation}: Extends greedy logic with a hard constraint on total relocation distance (\texttt{km\_budget}), explicitly capping operational costs per time step. This prevents excessive redistribution in cost-sensitive scenarios. By adding complexity to the plan generation, it was used for comparison with the main plannner, the greedy relocation.
   \item \textbf{No-op Relocation}: Returns an empty plan, serving as a baseline to quantify the impact of active rebalancing.
 \end{itemize}
 
 \paragraph{Charging Planners}
 
 \begin{itemize}
-  \item \textbf{Greedy Charging}: Prioritizes stations with high demand and low SoC using score $\lambda_i (1 - s_i)$, allocating plugs in descending order of urgency. The agent controls the fraction of total charging capacity utilized via $a_3 \rightarrow \text{charge\_budget\_frac} \in [0.05, 0.40]$. This ensures vehicles are charged where they are most needed.
-  \item \textbf{Slack Charging}: Applies a demand-gating mechanism, only charging at stations below a demand quantile threshold (controlled by $a_3 \rightarrow \text{lam\_charge\_quantile} \in [0.3, 0.7]$). This mitigates availability loss by concentrating charging at low-demand stations during off-peak periods.
+  \item \textbf{Greedy Charging}: Prioritizes stations with high demand and low SoC using score $\lambda_i (1 - s_i)$, allocating plugs in descending order of urgency. The agent controls the fraction of total charging capacity utilized via $a_3 \rightarrow \texttt{charge\_budget\_frac} \in [0.05, 0.40]$. This ensures vehicles are charged where they are most needed.
+  \item \textbf{Slack Charging}: Applies a demand-gating mechanism, only charging at stations below a demand quantile threshold. This mitigates availability loss by concentrating charging at low-demand stations during off-peak periods. The goal was to approach the charging strategy from the opposite perspective of greedy charging, and compare their performances.
   \item \textbf{No-op Charging}: As a baseline, plugs zero vehicles, isolating the effect of charging decisions in comparative experiments.
 \end{itemize}
 
-\subsubsection{Agents Implemented}
+\subsubsection{\label{sec:agents}Agents Implemented}
 
-The system evaluates four distinct control policies, each representing a different approach to learning operational parameters within the bounded action space $\mathbf{a}_t \in [0,1]^4$.
-
-% \paragraph{Constant-Action Baseline}
-% A non-adaptive policy that applies a fixed action vector throughout the entire episode. This serves as a performance floor, isolating planner behavior from adaptive control. The action remains unchanged regardless of system state, enabling direct measurement of how well hand-tuned parameters perform under varying conditions. This baseline is essential for quantifying the benefit of adaptive strategies.
+The system evaluates four distinct agents, each representing a different approach to learning planner parameters within the bounded action space $\mathbf{a}_t \in [0,1]^4$.
 
 \paragraph{Heuristic Agent}
 
-A rule-based reactive controller (\texttt{heuristic.py}) that computes actions from observation features without learning. It maintains exponentially weighted moving averages (EWMA) of recent relocation distance and queue rate to detect operational trends. Actions are derived through explicit logic: relocation thresholds ($a_0, a_1$) adapt to queue pressure and capacity imbalance, the target fill ratio ($a_2$) responds to peak-hour detection and system throttling, and charging intensity ($a_3$) scales with low-SoC tail percentiles. This agent represents domain-engineered intelligence, suitable for interpretable systems where explicit control rules are preferred over black-box learning.
+A rule-based reactive controller that computes actions from observation features without learning. It maintains exponentially weighted moving averages (EWMA) of recent relocation distance and queue rate to detect operational trends. Actions are derived through explicit logic: relocation thresholds ($a_0, a_1$) adapt to queue pressure and capacity imbalance, the target fill ratio ($a_2$) responds to peak-hour detection and system throttling, and charging intensity ($a_3$) scales with low-SoC tail percentiles. This agent represents domain-engineered intelligence, suitable for interpretable systems where explicit control rules are preferred over black-box learning.
 
 \paragraph{Episode-Level Bandit (UCB1)}
 
-% TODO: The action vector actually doesn't remain constant, if we count km_budget and charge_budget_frac as part of the action vector. Maybe rephrase to "the same constant action vector is applied at every tick within an episode, and only the planner budget parameters vary between episodes"?
-A stateless multi-armed bandit (\texttt{bandit\_param\_arms.py}) that selects discrete planner parameter combinations (arms) based on episode-level rewards. Each arm represents a fixed pair (\texttt{km\_budget}, \texttt{charge\_budget\_frac}). The agent applies Upper Confidence Bound (UCB1) selection, balancing exploitation of high-performing arms with exploration of untried configurations. Crucially, the same constant action vector is applied at every tick within an episode, for all episodes. Only the planner budget parameters vary between episodes. After all episodes are run, the agent converges to the arm with the highest average reward. As a very simple RL approach, it provides a baseline for learning performance without state-dependent adaptation, isolating the value of parameter tuning alone.
+A stateless multi-armed bandit that selects discrete planner parameter combinations in the form a fixed action (arm). The agent applies Upper Confidence Bound (UCB1) selection, balancing exploitation of high-performing arms with exploration of untried configurations. After all episodes are run, the agent converges to the arm with the highest average reward. As a very simple RL approach, it serves as a baseline to analyze the benefits of context-aware and continuous control agents.
 
 \paragraph{Contextual Bandit with Receding Horizon (LinUCB)}
 
-A context-aware bandit (\texttt{bandit\_contextual\_rh.py}) that selects arms within each episode based on aggregated system features. The agent extracts a 16-dimensional context vector from observations (fill ratio statistics, SoC percentiles, queue metrics, time-of-day) and applies disjoint LinUCB with per-arm linear models. Arms correspond to discrete budget pairs (\texttt{km\_budget}, \texttt{charge\_budget\_frac}), reselected every \texttt{block\_minutes}. This receding-horizon strategy enables intra-episode adaptation to evolving conditions (e.g., shifting from low to high charging budget as SoC degrades), while maintaining tractable exploration through ridge-regularized least-squares updates. The context dimensionality and block granularity balance responsiveness against sample efficiency, making it well-suited for non-stationary demand scenarios where coarse temporal adaptation outperforms purely reactive heuristics.
+A context-aware bandit that selects arms within each simulation episode based on aggregated system features. The agent extracts a 16-dimensional context vector from observations (fill ratio statistics, SoC percentiles, queue metrics, time-of-day) and applies disjoint LinUCB with per-arm linear models. Arms correspond to discrete actions, reselected every \texttt{block\_minutes}. This receding-horizon strategy enables intra-episode adaptation to evolving conditions (e.g., shifting from low to high charging budget as SoC degrades), while maintaining exploration through ridge-regularized least-squares updates. The use of context and more frequent decision-making helps the agent respond quickly to changing conditions, while still learning effectively from limited data. This makes it a good choice for environments such as this project's, where demand patterns change over time and simple reactive strategies are not enough.
 
 \paragraph{Soft Actor-Critic (SAC)}
 
-A Deep RL agent (\texttt{sac.py}) that learns a continuous control policy $\pi(\mathbf{o}_t) \rightarrow \mathbf{a}_t$ through off-policy actor-critic optimization. Observations are flattened into a single vector from per-station state and temporal features. The agent is trained with frame-skipping (action repeat, default 6 steps $\approx$ 30 min), reducing decision frequency to stabilize learning in long-horizon episodes. SAC's entropy-regularized objective encourages exploration while maximizing cumulative reward, enabling it to discover non-obvious action sequences that balance service quality and operational cost across diverse scenarios. This model is justified when sufficient training data is available and the optimal policy exhibits complex, non-linear dependencies that cannot be captured by parametric heuristics or linear contextual models.
-
+A Deep RL agent that learns a continuous control policy $\pi(\mathbf{o}_t) \rightarrow \mathbf{a}_t$ through off-policy actor-critic optimization. Observations are flattened into a single vector from per-station state and temporal features. The agent is trained with frame-skipping (action repeat, default 6 steps $\approx$ 30 min), reducing decision frequency to stabilize learning in long-horizon episodes and counteract noise from the stochastic processes. SAC's entropy-regularized objective encourages exploration while maximizing cumulative reward, enabling it to discover non-obvious action sequences that balance service quality and operational cost across diverse scenarios. This model was chosen for its strong performance in continuous control tasks, being able to capture relationships, such as the trade-offs between relocation aggressiveness and charging intensity, that need to be balanced to optimize performance in such a complex and stochastic environment.
 
 \subsubsection{Implementation Tools}
 The experimental simulation was implemented in \textbf{Python}, using the following libraries:
@@ -307,15 +262,60 @@ The experimental simulation was implemented in \textbf{Python}, using the follow
 \end{itemize}
 
 \subsection{\label{sec:environ_spec}External Data}
-The simulation environment is grounded in realistic topological data. The road network is extracted using OSMnx~\cite{https://doi.org/10.1111/gean.70009} for the city of Porto, Portugal, as if we're riding a bike, as it is the most similar mode of transport to electric scooters. For the experimental setup in this project, the network is then simplified to a graph of $N=10$ randomly selected stations (nodes) within the city limits, separate from each other by at least 500 meters. Each node is connected to every other node, with the edges retaining the shortest-path distance between them. This is done to abstract away the minute details of routing, which provide little meaning to the problem at hand, while preserving realistic inter-station distances. The travel time between stations is derived from these distances, assuming a constant average speed of 15 km/h, typical for shared electrical scooters in urban settings, and within the speed limits defined in Portuguese traffic legislation \cite{DL102B2020}.
+The simulation environment is grounded in realistic topological data. The road network is extracted using OSMnx~\cite{https://doi.org/10.1111/gean.70009} from real cities, as if we're riding a bike, as it is the most similar mode of transport to electric scooters. Each node is connected to every other node, with the edges retaining the shortest-path distance between them. This is done to abstract away the minute details of routing, which provide little meaning to the problem at hand, while preserving realistic inter-station distances. The travel time between stations is derived from these distances, assuming a constant average speed of 15 km/h, typical for shared electrical scooters in urban settings, and within the speed limits defined in Portuguese traffic legislation~\cite{DL102B2020}.
 
-As the configuration of the simulation environment r
 
 \subsection{Solution Design and Experimental Setup}
 
-With the specific instatiation of the simulation environment generated and defined,
+The simulation experiments were conducted using several environment configurations, each defined in a dedicated YAML file. Table~\ref{tab:env-configs} summarizes the main parameters for all tested scenarios:
 
+\begin{table}[ht]
+  \centering
+  \caption{Summary of environment configurations used in experiments.}
+  \label{tab:env-configs}
+  \begin{threeparttable}
+    \begin{tabular}{lcccc}
+      \hline
+      \textbf{Config} & \textbf{Porto10\tnote{a}} & \textbf{Porto20\tnote{b}} & \textbf{Porto20\tnote{c}} & \textbf{Lisbon20\tnote{d}} \\
+      \hline
+      Stations, $N$ & 10 & 20 & 20 & 20 \\
+      Time step, $\Delta t$ & 5 & 5 & 5 & 5 \\
+      Horizon, $H$ & 168 & 168 & 168 & 168 \\
+      Capacity p/station, $C$ & 12 & 12 & 12 & 12 \\
+      Chargers p/station, $K$ & 12 & 12 & 12 & 12 \\
+      Charge rate, $\rho$ & 0.35 & 0.35 & 0.35 & 0.35 \\
+      Battery, $B$ & 0.50 & 0.50 & 0.50 & 0.50 \\
+      Energy cost, $c_{energy}$ & 0.20 & 0.20 & 0.20 & 0.20 \\
+      Base demand, $\lambda$ & 0.35 & 0.35 & 0.35 & 0.35 \\
+      Seed & 42 & 42 & 42 & 42 \\
+      \hline
+      \multicolumn{5}{l}{\textit{Scoring weights}} \\
+      $w_\text{unavail}$ & 5.0 & 5.0 & 5.0 & 5.0 \\
+      $w_\text{reloc}$ & 1.0 & 1.0 & 1.0 & 1.0 \\
+      $w_\text{charge}$ & 1.0 & 1.0 & 1.0 & 1.0 \\
+      $w_\text{queue}$ & 4.0 & 4.0 & 4.0 & 4.0 \\
+      \hline
+      \multicolumn{5}{l}{\textit{Normalization scales}} \\
+      $U_0$ (unavail.) & 0.484 & 0.720 & 0.746 & 0.250 \\
+      $R_0$ (reloc. km) & 0.809 & 0.965 & 0.816 & 1.00 \\
+      $C_0$ (charge €) & 0.00664 & 0.0279 & 0.0273 & 0.0100 \\
+      $Q_0$ (queue) & 49.13 & 205.71 & 234.70 & 10.00 \\
+      \hline
+    \end{tabular}
+    \begin{tablenotes}\footnotesize
+      \item[a] Minimum distance between any pair of stations: 500m
+      \item[b] Minimum distance between any pair of stations: 600m
+      \item[c] Minimum distance between any pair of stations: 900m
+      \item[d] Minimum distance between any pair of stations: 700m
+    \end{tablenotes}
+  \end{threeparttable}
+\end{table}
 
+Additionally, all configurations include the full distance and travel time matrices, as well as the geographic coordinates and identifiers for each station.
+
+% TODO: Describe scenarios: baseline | hotspot_od | hetero_lambda | event_heavy
+
+% TODO:: Describe the experimental protocol, including the number of episodes, evaluation metrics, and statistical analysis methods used to compare agent performances across different scenarios.
 
 \section{Results and Discussion}
 
