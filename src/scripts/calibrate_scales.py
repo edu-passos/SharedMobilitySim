@@ -67,7 +67,7 @@ def run_one_episode(
     tick = _collect_tick_arrays(env)
     # Per-episode per-tick means (this is what "scales" represent)
     ep_means = {
-        "A0_unavailability": float(np.mean(tick["unavailability"])),
+        "U0_unavailability": float(np.mean(tick["unavailability"])),
         "R0_reloc_km": float(np.mean(tick["reloc_km"])),
         "C0_charge_cost_eur": float(np.mean(tick["charge_cost_eur"])),
         "Q0_queue_total": float(np.mean(tick["queue_total"])),
@@ -113,7 +113,7 @@ def main() -> None:
         metas.append(meta)
 
     # Aggregate
-    keys = ["A0_unavailability", "R0_reloc_km", "C0_charge_cost_eur", "Q0_queue_total"]
+    keys = ["U0_unavailability", "R0_reloc_km", "C0_charge_cost_eur", "Q0_queue_total"]
     mat = np.array([[row[k] for k in keys] for row in ep_rows], dtype=float)
 
     mean = mat.mean(axis=0)
@@ -134,7 +134,7 @@ def main() -> None:
     print("score:")
     print("  objective: client_satisfaction_normalized")
     print("  scales:")
-    print(f"    A0_unavailability: {out_scales['A0_unavailability']:.6f}")
+    print(f"    U0_unavailability: {out_scales['U0_unavailability']:.6f}")
     print(f"    R0_reloc_km: {out_scales['R0_reloc_km']:.6f}")
     print(f"    C0_charge_cost_eur: {out_scales['C0_charge_cost_eur']:.6f}")
     print(f"    Q0_queue_total: {out_scales['Q0_queue_total']:.6f}")

@@ -16,7 +16,7 @@ class SimConfig:
     # System parameters
     capacity: np.ndarray  # (N,) max vehicles per station
     travel_min: np.ndarray  # (N,N) travel time matrix (minutes)
-    cost_km: np.ndarray  # (N,N) relocation distance or cost
+    cost_km: np.ndarray  # (N,N) distance matrix (km)
     chargers: np.ndarray  # (N,) plugs per station
     charge_rate: np.ndarray  # (N,) SoC/hour when plugged (e.g. 0.25 => +25%/h)
     battery_kwh: float  # kWh per vehicle @ 100% SoC

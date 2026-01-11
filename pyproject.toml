@@ -11,6 +11,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "gymnasium>=1.2.3",
+    "matplotlib>=3.10.8",
     "networkx>=3.4.2",
     "numpy>=2.2.6",
     "osmnx>=2.0.6",
