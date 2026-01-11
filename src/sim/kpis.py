@@ -92,12 +92,12 @@ def compute_episode_kpis(env, *, total_reward: float) -> dict[str, Any]:
         dq_mean = dq_p95 = dq_p99 = dq_max = 0.0
 
     # Normalized objective decomposition (must match env reward)
-    A0 = max(float(scfg.A0_unavailability), float(scfg.eps))
+    A0 = max(float(scfg.U0_unavailability), float(scfg.eps))
     R0 = max(float(scfg.R0_reloc_km), float(scfg.eps))
     C0 = max(float(scfg.C0_charge_cost_eur), float(scfg.eps))
     Q0 = max(float(scfg.Q0_queue_total), float(scfg.eps))
 
-    J_avail_t = float(scfg.w_availability) * (unavailability / A0)
+    J_avail_t = float(scfg.w_unavail) * (unavailability / A0)
     J_reloc_t = float(scfg.w_reloc) * (reloc_km / R0)
     J_charge_t = float(scfg.w_charge) * (charge_cost / C0)
     J_queue_t = float(scfg.w_queue) * (queue_total / Q0)

@@ -30,7 +30,7 @@ from typing import Any
 import numpy as np
 import yaml
 
-from control.policies import REGISTRY as POLICY_REGISTRY
+from control.registry import REGISTRY as POLICY_REGISTRY
 from sim.core import Sim, SimConfig
 from sim.demand import effective_lambda
 from sim.events import events
@@ -40,13 +40,13 @@ from sim.weather_mc import make_default_weather_mc as weather_mc
 @dataclass
 class ScoreConfig:
     # weights (dimensionless priorities)
-    w_availability: float
+    w_unavail: float
     w_reloc: float
     w_charge: float
     w_queue: float
 
     # scales (baseline magnitudes, per tick)
-    A0_unavailability: float
+    U0_unavailability: float
     R0_reloc_km: float
     C0_charge_cost_eur: float
     Q0_queue_total: float
@@ -93,11 +93,11 @@ class PortoMicromobilityEnv:
         s_cfg = score_cfg.get("scales", {})
 
         self.score_cfg = ScoreConfig(
-            w_availability=float(w_cfg.get("w_availability", 5.0)),
+            w_unavail=float(w_cfg.get("w_unavail", 5.0)),
             w_reloc=float(w_cfg.get("w_reloc", 1.0)),
             w_charge=float(w_cfg.get("w_charge", 1.0)),
             w_queue=float(w_cfg.get("w_queue", 4.0)),
-            A0_unavailability=float(s_cfg.get("A0_unavailability", 0.25)),
+            U0_unavailability=float(s_cfg.get("U0_unavailability", 0.25)),
             R0_reloc_km=float(s_cfg.get("R0_reloc_km", 1.0)),
             C0_charge_cost_eur=float(s_cfg.get("C0_charge_cost_eur", 0.01)),
             Q0_queue_total=float(s_cfg.get("Q0_queue_total", 10.0)),
@@ -324,13 +324,13 @@ class PortoMicromobilityEnv:
 
         unavailability = 1.0 - availability
 
-        A0 = max(cfg.A0_unavailability, cfg.eps)
+        A0 = max(cfg.U0_unavailability, cfg.eps)
         R0 = max(cfg.R0_reloc_km, cfg.eps)
         C0 = max(cfg.C0_charge_cost_eur, cfg.eps)
         Q0 = max(cfg.Q0_queue_total, cfg.eps)
 
         J_t = (
-            cfg.w_availability * (unavailability / A0)
+            cfg.w_unavail * (unavailability / A0)
             + cfg.w_reloc * (reloc_km / R0)
             + cfg.w_charge * (charge_cost / C0)
             + cfg.w_queue * (queue_total / Q0)

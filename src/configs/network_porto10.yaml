@@ -281,14 +281,14 @@ energy:
 score:
   objective: client_satisfaction_normalized
   weights:
-    w_availability: 5.0
+    w_unavail: 5.0
     w_reloc: 1.0
     w_charge: 1.0
     w_queue: 4.0
   score:
   scales:
     # Normalization scales for the normalized client-satisfaction objective
-    A0_unavailability: 0.483631
+    U0_unavailability: 0.483631
     R0_reloc_km: 0.809323
     C0_charge_cost_eur: 0.006640
     Q0_queue_total: 49.131481

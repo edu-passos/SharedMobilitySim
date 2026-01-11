@@ -42,13 +42,13 @@ REGISTRY = PlannerRegistry()
 
 # ---------- Built-in adapters (wrap your baseline functions) ----------
 def _reloc_greedy_adapter(x, C, cost_km, *, params: dict[str, Any]) -> Any:
-    from control.baselines import plan_relocation_greedy
+    from control.planners import plan_relocation_greedy
 
     return plan_relocation_greedy(x, C, cost_km, **params)
 
 
 def _charge_greedy_adapter(x, s, chargers, lam_t, *, params: dict[str, Any]) -> Any:
-    from control.baselines import plan_charging_greedy
+    from control.planners import plan_charging_greedy
 
     return plan_charging_greedy(x, s, chargers, lam_t, **params)
 
@@ -126,13 +126,13 @@ REGISTRY.register_charging("noop", _charge_noop_adapter)
 
 
 def _reloc_budgeted_adapter(x, C, cost_km, *, params: dict[str, Any]) -> Any:
-    from control.baselines import plan_relocation_budgeted
+    from control.planners import plan_relocation_budgeted
 
     return plan_relocation_budgeted(x, C, cost_km, **params)
 
 
 def _charge_slack_adapter(x, s, chargers, lam_t, *, params: dict[str, Any]) -> Any:
-    from control.baselines import plan_charging_slack
+    from control.planners import plan_charging_slack
 
     return plan_charging_slack(x, s, chargers, lam_t, **params)
 

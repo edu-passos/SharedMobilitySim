@@ -109,7 +109,7 @@ def main():
 
     # 4) Write YAML config
     cfg = {
-        "time": {"dt_minutes": 5, "horizon_hours": 48},
+        "time": {"dt_minutes": 5, "horizon_hours": 24},
         "network": {
             "n_stations": int(N),
             "capacity_default": 12,
@@ -120,10 +120,10 @@ def main():
             "lat": df["lat"].round(7).tolist(),
             "lon": df["lon"].round(7).tolist(),
         },
-        "demand": {"base_lambda_per_dt": 0.8},
+        "demand": {"base_lambda_per_dt": 0.35},
         "energy": {
-            "chargers_per_station": [2] * N,
-            "charge_rate_soc_per_hour": [0.25] * N,
+            "chargers_per_station": [6] * N,
+            "charge_rate_soc_per_hour": [0.35] * N,
             "battery_kwh_per_vehicle": 0.5,
             "energy_cost_per_kwh_eur": 0.20,
         },
