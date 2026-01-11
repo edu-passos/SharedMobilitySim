@@ -7,6 +7,9 @@ import numpy as np
 import yaml
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import FancyArrowPatch
+import matplotlib.colors as mcolors
+from matplotlib.lines import Line2D
+
 
 from envs.porto_env import PortoMicromobilityEnv
 
@@ -237,21 +240,40 @@ def main() -> None:
     fill0 = fill_series[0]
     soc0 = soc_series[0]
     sizes0 = 80 + 420 * (fill0 / max(float(np.max(fill0)), 1e-9))
+    SOC_MIN = 0.15  # minimum rentable threshold
+
+    bounds = [0.0, SOC_MIN, 0.30, 0.60, 1.0]
+    colors = ["#8b0000", "#ff8c00", "#9acd32", "#006400"]  # critical, low, ok, good
+
+    cmap = mcolors.ListedColormap(colors)
+    norm = mcolors.BoundaryNorm(bounds, cmap.N, clip=True)
     sc = ax.scatter(
-        x,
-        y,
-        s=sizes0,
-        c=soc0,
-        cmap="RdYlGn",
-        vmin=0.0,
-        vmax=1.0,
-        edgecolors="k",
-        linewidths=0.8,
-        zorder=3,
+    x,
+    y,
+    s=sizes0,
+    c=soc0,
+    cmap=cmap,
+    norm=norm,
+    edgecolors="k",
+    linewidths=0.8,
+    zorder=3,
     )
 
-    cbar = fig.colorbar(sc, ax=ax, fraction=0.046, pad=0.02)
+    sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+
+    cbar = fig.colorbar(sm, ax=ax, fraction=0.046, pad=0.02, ticks=bounds)
     cbar.set_label("SoC (station avg)", fontsize=9)
+    cbar.ax.set_yticklabels(["0%", "15%", "30%", "60%", "100%"])
+
+    legend_items = [
+        Line2D([0], [0], marker="o", color="w", label="SoC < 15% (not rentable)", markerfacecolor=colors[0], markeredgecolor="k", markersize=8),
+        Line2D([0], [0], marker="o", color="w", label="15–30% (low)",          markerfacecolor=colors[1], markeredgecolor="k", markersize=8),
+        Line2D([0], [0], marker="o", color="w", label="30–60% (ok)",           markerfacecolor=colors[2], markeredgecolor="k", markersize=8),
+        Line2D([0], [0], marker="o", color="w", label=">60% (good)",           markerfacecolor=colors[3], markeredgecolor="k", markersize=8),
+    ]
+    ax.legend(handles=legend_items, loc="upper left", fontsize=8, frameon=True)
+
 
     kpi_text = ax.text(
         0.01,

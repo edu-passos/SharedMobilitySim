@@ -1,262 +1,427 @@
+#!/usr/bin/env python3
+"""
+analyze_results.py
+
+Aggregate evaluation JSONs into comparable CSV tables across mixed schemas.
+
+Supported schemas:
+
+1) Standard single-policy eval (heuristic/SAC/etc.)
+   - obj["summary"][k] = {"mean","std",...}
+   - OR obj["summary"][f"{k}_mean"] / obj["summary"][f"{k}_std"]
+   - OR obj[f"{k}_mean"] / obj[f"{k}_std"]
+
+2) LinUCB RH contextual bandit
+   - obj["episodes"][i]["episode_kpis"][k] exists
+   - aggregate across episodes (optionally last N)
+
+3) Multi-policy sweep outputs (baselines, bandit_ucb1_fixed)
+   - obj["summaries"] is a dict: policy_name -> { k -> {"mean","std",...} }
+   - produce one result row per policy_name
+
+Key improvements:
+- Scenario inferred primarily from filename prefix (handles *fromBaseline* files).
+- Method includes directory to avoid collisions, and for multi-policy files includes policy name.
+- --debug prints why a file is skipped or missing metrics.
+"""
+
+from __future__ import annotations
+
 import argparse
-import glob
 import json
+import math
+import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import numpy as np
+import pandas as pd
 
-REPORT_KEYS_DEFAULT = [
-    # objective
+SCENARIOS = ["baseline", "event_heavy", "hetero_lambda", "hotspot_od"]
+
+CORE_KEYS = [
     "J_run",
+    "unmet_rate",
+    "availability_demand_weighted",
+    "availability_tick_avg",
+    "relocation_km_total",
+    "charging_cost_eur_total",
+    "charge_utilization_avg",
     "J_avail_run",
     "J_reloc_run",
     "J_charge_run",
     "J_queue_run",
-    # service
-    "availability_demand_weighted",
-    "availability_tick_avg",
-    "unmet_rate",
-    "unmet_total",
-    "avg_wait_min_proxy",
-    # queue
-    "queue_total_avg",
-    "queue_total_p95",
-    "queue_rate_avg",
-    "queue_rate_p95",
-    "queue_delta_mean",
-    "queue_delta_p95",
-    # ops
-    "relocation_km_total",
-    "charging_cost_eur_total",
-    "charging_energy_kwh_total",
-    "charge_utilization_avg",
 ]
 
 
 def _safe_float(x: Any) -> float:
     try:
-        if x is None:
-            return float("nan")
-        return float(x)
+        v = float(x)
+        return v if math.isfinite(v) else float("nan")
     except Exception:
         return float("nan")
 
 
 def _mean_std(vals: list[float]) -> tuple[float, float]:
-    a = np.array([v for v in vals if np.isfinite(v)], dtype=float)
-    if a.size == 0:
+    arr = np.asarray([v for v in vals if np.isfinite(v)], dtype=float)
+    if arr.size == 0:
         return float("nan"), float("nan")
-    m = float(np.mean(a))
-    s = float(np.std(a, ddof=1)) if a.size > 1 else 0.0
-    return m, s
+    if arr.size == 1:
+        return float(arr.mean()), 0.0
+    return float(arr.mean()), float(arr.std(ddof=1))
 
 
-def _infer_method(obj: dict[str, Any], path: str) -> str:
-    # Prefer explicit
-    if isinstance(obj.get("summary"), dict):
-        agent = obj["summary"].get("agent")
-        if isinstance(agent, str) and agent.strip():
-            return agent.strip()
-
-    # Fall back to filename heuristics
-    base = Path(path).name.lower()
-    if "heuristic" in base:
-        return "heuristic"
-    if "contextual" in base or "linucb" in base or "rh" in base:
-        return "bandit_contextual_rh"
-    if "bandit" in base:
-        return "bandit_episode"
-    if "sweep" in base or "grid" in base:
-        return "sweep"
-    return "unknown"
-
-
-def _infer_scenario(obj: dict[str, Any], path: str) -> str:
-    if isinstance(obj.get("summary"), dict):
-        s = obj["summary"].get("scenario")
-        if isinstance(s, str) and s.strip():
-            return s.strip()
-
-    # heuristics/bandit scripts sometimes keep scenario at top-level
-    s = obj.get("scenario")
-    if isinstance(s, str) and s.strip():
-        return s.strip()
-
-    # filename fallback
-    base = Path(path).name.lower()
-    for cand in ["baseline", "hotspot_od", "hetero_lambda", "event_heavy"]:
-        if cand in base:
-            return cand
-    return "unknown"
-
-
-def _extract_episode_rows(obj: dict[str, Any]) -> list[dict[str, Any]]:
-    """Returns a list of episode KPI dicts (flat).
-    normalize different JSON shapes into a common list where KPI keys exist at top-level.
+def _scenario_from_filename(path: Path) -> str | None:
     """
-    if not isinstance(obj, dict):
-        return []
+    Strong rule: your files start with scenario token.
+    Avoid matching 'baseline' inside 'fromBaseline'.
+    """
+    name = path.name.lower()
 
-    episodes = obj.get("episodes")
-    if not isinstance(episodes, list):
-        return []
+    for s in SCENARIOS:
+        if name.startswith(s + "__") or name.startswith(s + "_") or name.startswith(s + "."):
+            return s
 
-    # Case A: heuristic_eval / eval_policies style: each episode row already has KPI keys
-    if episodes and isinstance(episodes[0], dict) and "J_run" in episodes[0]:
-        return episodes  # already flat
+    for s in SCENARIOS:
+        if re.search(rf"(^|[^a-z0-9]){re.escape(s)}([^a-z0-9]|$)", name):
+            return s
 
-    # Case B: contextual_rh: each episode has "episode_kpis"
-    if episodes and isinstance(episodes[0], dict) and "episode_kpis" in episodes[0]:
-        out: list[dict[str, Any]] = []
-        for e in episodes:
-            if not isinstance(e, dict):
+    return None
+
+
+def _infer_scenario(obj: dict[str, Any], path: Path, *, debug: bool = False) -> str:
+    scen_file = _scenario_from_filename(path)
+    if scen_file:
+        return scen_file
+
+    if isinstance(obj.get("scenario"), str):
+        return str(obj["scenario"])
+    if isinstance(obj.get("summary"), dict) and isinstance(obj["summary"].get("scenario"), str):
+        return str(obj["summary"]["scenario"])
+
+    if debug:
+        print(f"[debug] could not infer scenario: {path}")
+    return "unknown"
+
+
+def _is_training_only_bandit(obj: dict[str, Any]) -> bool:
+    # Skip known “tuning logs”
+    summ = obj.get("summary")
+    if isinstance(summ, dict) and "best_arm_mean_neg_J_run" in summ:
+        return True
+
+    eps = obj.get("episodes")
+    if isinstance(eps, list) and eps:
+        row0 = eps[0]
+        if isinstance(row0, dict) and ("chosen_arm_idx" in row0) and ("episode" in row0):
+            return True
+
+    return False
+
+
+def _detect_linucb(obj: dict[str, Any]) -> bool:
+    summ = obj.get("summary")
+    if isinstance(summ, dict) and ("linucb_alpha" in summ or "bandit_arm_pulls" in summ):
+        return True
+    eps = obj.get("episodes")
+    if isinstance(eps, list) and eps and isinstance(eps[0], dict) and "episode_kpis" in eps[0]:
+        return True
+    return False
+
+
+def _infer_method_single(obj: dict[str, Any], path: Path) -> str:
+    """
+    For single-policy files.
+    Prefer explicit agent/method fields; otherwise include directory to avoid collisions.
+    """
+    for key in ["agent", "method", "policy", "name"]:
+        if isinstance(obj.get(key), str) and obj.get(key).strip():
+            val = str(obj[key]).strip()
+            if val == "heuristic_tick_level":
+                return "heuristic:tick_level"
+            return val
+
+    # LinUCB readable name
+    summ = obj.get("summary")
+    if isinstance(summ, dict) and ("linucb_alpha" in summ or "bandit_arm_pulls" in summ):
+        blk = summ.get("block_minutes", "na")
+        a = summ.get("linucb_alpha", "na")
+        reg = summ.get("linucb_reg", "na")
+        return f"{path.parent.name}:linucb_rh__blk{blk}__a{a}__reg{reg}"
+
+    return f"{path.parent.name}:{path.stem}"
+
+
+def _extract_standard_summary_anywhere(obj: dict[str, Any]) -> dict[str, float]:
+    """
+    Extract from:
+    - obj["summary"][k] = {mean,std}
+    - obj["summary"][f"{k}_mean"]
+    - obj[f"{k}_mean"]
+    """
+    out: dict[str, float] = {}
+
+    def grab(container: dict[str, Any]) -> None:
+        for k in CORE_KEYS:
+            # nested
+            if isinstance(container.get(k), dict):
+                out[f"{k}_mean"] = _safe_float(container[k].get("mean"))
+                out[f"{k}_std"] = _safe_float(container[k].get("std", 0.0))
                 continue
-            ek = e.get("episode_kpis", {})
-            if isinstance(ek, dict) and ek:
-                row = dict(ek)
-                # Keep a little metadata if present
-                if "seed" in e:
-                    row["seed"] = e["seed"]
-                out.append(row)
-        return out
+            # flat
+            mk = f"{k}_mean"
+            if mk in container:
+                out[mk] = _safe_float(container.get(mk))
+                out[f"{k}_std"] = _safe_float(container.get(f"{k}_std", 0.0))
 
-    # Case C: bandit_param_arms style: episodes contain kpis but may not include J_run
-    # (still return; caller will handle missing keys)
-    if episodes and isinstance(episodes[0], dict):
-        return episodes
+    summ = obj.get("summary")
+    if isinstance(summ, dict):
+        grab(summ)
+    if isinstance(obj, dict):
+        grab(obj)
 
-    return []
-
-
-def _aggregate_kpis(rows: list[dict[str, Any]], keys: list[str]) -> dict[str, dict[str, float]]:
-    out: dict[str, dict[str, float]] = {}
-    for k in keys:
-        vals = [_safe_float(r.get(k)) for r in rows]
-        mean, std = _mean_std(vals)
-        out[k] = {"mean": mean, "std": std}
     return out
 
 
-def _format_mean_std(m: float, s: float, *, nd: int = 3) -> str:
-    if not np.isfinite(m):
-        return "NA"
-    if not np.isfinite(s):
-        s = 0.0
-    return f"{m:.{nd}f}±{s:.{nd}f}"
+def _extract_linucb_from_episode_kpis(
+    obj: dict[str, Any],
+    *,
+    last_n_episodes: int | None,
+) -> tuple[dict[str, float], list[dict[str, Any]]]:
+    eps = obj.get("episodes", [])
+    if not isinstance(eps, list):
+        return {}, []
+
+    rows: list[dict[str, Any]] = []
+    for i, e in enumerate(eps):
+        if not isinstance(e, dict):
+            continue
+        kpis = e.get("episode_kpis")
+        if not isinstance(kpis, dict):
+            continue
+
+        row: dict[str, Any] = {"episode": i}
+        if "seed" in e:
+            row["seed"] = e["seed"]
+        for k in CORE_KEYS:
+            if k in kpis:
+                row[k] = kpis[k]
+        rows.append(row)
+
+    if last_n_episodes is not None and last_n_episodes > 0 and len(rows) > last_n_episodes:
+        rows = rows[-last_n_episodes:]
+
+    out: dict[str, float] = {}
+    for k in CORE_KEYS:
+        vals = [_safe_float(r.get(k)) for r in rows]
+        m, s = _mean_std(vals)
+        out[f"{k}_mean"] = m
+        out[f"{k}_std"] = s
+
+    return out, rows
 
 
-def _to_csv(table: list[dict[str, Any]], out_path: Path) -> None:
-    if not table:
-        return
-    cols = list(table[0].keys())
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", encoding="utf-8") as f:
-        f.write(",".join(cols) + "\n")
-        f.writelines(",".join(str(row.get(c, "")) for c in cols) + "\n" for row in table)
+def _extract_multi_policy_summaries(
+    obj: dict[str, Any],
+) -> list[tuple[str, dict[str, float]]]:
+    """
+    For files with obj["summaries"][policy_name][k] = {mean,std,...}
+    Returns: [(policy_name, summary_metrics_dict), ...]
+    """
+    summaries = obj.get("summaries")
+    if not isinstance(summaries, dict):
+        return []
+
+    out_rows: list[tuple[str, dict[str, float]]] = []
+    for policy_name, pol_summ in summaries.items():
+        if not isinstance(policy_name, str) or not isinstance(pol_summ, dict):
+            continue
+
+        metrics: dict[str, float] = {}
+        for k in CORE_KEYS:
+            if isinstance(pol_summ.get(k), dict):
+                metrics[f"{k}_mean"] = _safe_float(pol_summ[k].get("mean"))
+                metrics[f"{k}_std"] = _safe_float(pol_summ[k].get("std", 0.0))
+
+        if metrics:
+            out_rows.append((policy_name, metrics))
+
+    return out_rows
 
 
-def _to_md(table: list[dict[str, Any]], out_path: Path) -> None:
-    if not table:
-        return
-    cols = list(table[0].keys())
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", encoding="utf-8") as f:
-        f.write("| " + " | ".join(cols) + " |\n")
-        f.write("| " + " | ".join(["---"] * len(cols)) + " |\n")
-        f.writelines("| " + " | ".join(str(row.get(c, "")) for c in cols) + " |\n" for row in table)
+@dataclass
+class ParsedRow:
+    path: Path
+    scenario: str
+    method: str
+    summary_metrics: dict[str, float]
+    episodes_rows: list[dict[str, Any]]
+
+
+def parse_one(path: Path, *, last_n_linucb: int | None, debug: bool = False) -> list[ParsedRow]:
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as ex:
+        if debug:
+            print(f"[debug] failed to read json: {path} ({ex})")
+        return []
+
+    if not isinstance(obj, dict):
+        if debug:
+            print(f"[debug] not a dict json: {path}")
+        return []
+
+    if _is_training_only_bandit(obj):
+        if debug:
+            print(f"[debug] skipped training-only bandit log: {path}")
+        return []
+
+    scenario = _infer_scenario(obj, path, debug=debug)
+
+    # Case 3: multi-policy summaries (baselines, bandit_ucb1_fixed)
+    multi = _extract_multi_policy_summaries(obj)
+    if multi:
+        rows: list[ParsedRow] = []
+        for policy_name, metrics in multi:
+            # method must include directory + policy name to be unique and readable
+            method = f"{path.parent.name}:{policy_name}"
+            rows.append(ParsedRow(path=path, scenario=scenario, method=method, summary_metrics=metrics, episodes_rows=[]))
+        return rows
+
+    # Case 2: LinUCB RH
+    if _detect_linucb(obj):
+        method = _infer_method_single(obj, path)
+        metrics, eps_rows = _extract_linucb_from_episode_kpis(obj, last_n_episodes=last_n_linucb)
+        if not metrics and debug:
+            print(f"[debug] linucb-like but no episode_kpis extracted: {path}")
+        return [ParsedRow(path=path, scenario=scenario, method=method, summary_metrics=metrics, episodes_rows=eps_rows)]
+
+    # Case 1: standard single-policy
+    method = _infer_method_single(obj, path)
+    metrics = _extract_standard_summary_anywhere(obj)
+    if not metrics and debug:
+        print(f"[debug] no summary metrics found (schema mismatch): {path}")
+    return [ParsedRow(path=path, scenario=scenario, method=method, summary_metrics=metrics, episodes_rows=[])]
+
+
+def iter_json_files(roots: list[Path], include: str | None, exclude: str | None) -> Iterable[Path]:
+    inc_re = re.compile(include) if include else None
+    exc_re = re.compile(exclude) if exclude else None
+
+    for root in roots:
+        if root.is_file() and root.suffix.lower() == ".json":
+            paths = [root]
+        else:
+            paths = sorted(root.rglob("*.json"))
+
+        for p in paths:
+            s = p.as_posix()
+            if inc_re and not inc_re.search(s):
+                continue
+            if exc_re and exc_re.search(s):
+                continue
+            yield p
+
+
+def _dedup(df: pd.DataFrame, strategy: str) -> pd.DataFrame:
+    strategy = str(strategy).lower()
+    if strategy == "none":
+        return df
+
+    df = df.copy()
+
+    if strategy == "best":
+        df["__J"] = pd.to_numeric(df.get("J_run_mean", np.nan), errors="coerce").fillna(np.inf)
+        df = df.sort_values(["scenario", "method", "__J", "path"], ascending=[True, True, True, True])
+        df = df.drop_duplicates(subset=["scenario", "method"], keep="first").drop(columns=["__J"])
+        return df
+
+    if strategy == "latest":
+        df["__mtime"] = df["path"].apply(lambda p: Path(p).stat().st_mtime if Path(p).exists() else 0.0)
+        df = df.sort_values(["scenario", "method", "__mtime"], ascending=[True, True, False])
+        df = df.drop_duplicates(subset=["scenario", "method"], keep="first").drop(columns=["__mtime"])
+        return df
+
+    return df
 
 
 def main() -> None:
-    p = argparse.ArgumentParser()
-    p.add_argument("--inputs", nargs="*", default=[], help="JSON files or globs (e.g., out/*.json).")
-    p.add_argument("--out_csv", default="out/summary_table.csv")
-    p.add_argument("--out_md", default="out/summary_table.md")
-    p.add_argument("--report_keys", nargs="*", default=REPORT_KEYS_DEFAULT)
-    p.add_argument("--rank_by", default="J_run", help="KPI key to rank by (lower is better for J_run).")
-    args = p.parse_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", nargs="+", required=True, help="One or more JSON files or directories to scan.")
+    ap.add_argument("--include", default=None, help="Regex include filter on full path (optional).")
+    ap.add_argument("--exclude", default=None, help="Regex exclude filter on full path (optional).")
 
-    # Resolve inputs
-    files: list[str] = []
-    if args.inputs:
-        for x in args.inputs:
-            files.extend(glob.glob(x))
-    else:
-        files = glob.glob("out/*.json")
+    ap.add_argument("--out_csv", default="out/eval/all_results_summary.csv")
+    ap.add_argument("--out_episodes_csv", default="", help="If set, write episode-level CSV here.")
 
-    files = sorted(dict.fromkeys(files))  # dedupe, stable
-    if not files:
-        print("No input JSON files found. Use --inputs out/*.json")
-        return
+    ap.add_argument("--linucb_last_n", type=int, default=0, help="If >0 use last N episodes for LinUCB aggregation.")
+    ap.add_argument("--dedup", default="best", choices=["none", "best", "latest"])
+    ap.add_argument("--debug", action="store_true")
 
-    rows_out: list[dict[str, Any]] = []
-    per_entry: list[tuple[str, str, str, dict[str, dict[str, float]]]] = []
+    args = ap.parse_args()
 
-    for path in files:
-        try:
-            with open(path, encoding="utf-8") as f:
-                obj = json.load(f)
-        except Exception as e:
-            print(f"[skip] {path}: {e}")
-            continue
+    roots = [Path(r) for r in args.root]
+    last_n_linucb = int(args.linucb_last_n) if int(args.linucb_last_n) > 0 else None
 
-        method = _infer_method(obj, path)
-        scenario = _infer_scenario(obj, path)
-        ep_rows = _extract_episode_rows(obj)
+    parsed_rows: list[ParsedRow] = []
+    for p in iter_json_files(roots, args.include, args.exclude):
+        parsed_rows.extend(parse_one(p, last_n_linucb=last_n_linucb, debug=bool(args.debug)))
 
-        if not ep_rows:
-            print(f"[skip] {path}: no episode rows recognized")
-            continue
+    # Keep only rows with metrics
+    parsed_rows = [r for r in parsed_rows if r.summary_metrics]
+    if not parsed_rows:
+        raise SystemExit("No comparable eval JSONs found. Re-run with --debug to see why files are skipped.")
 
-        agg = _aggregate_kpis(ep_rows, list(args.report_keys))
-        per_entry.append((scenario, method, path, agg))
+    rows = []
+    for r in parsed_rows:
+        row = {"scenario": r.scenario, "method": r.method, "path": r.path.as_posix()}
+        row.update(r.summary_metrics)
+        rows.append(row)
 
-        # Build a compact one-row table with formatted mean±std
-        row = {
-            "scenario": scenario,
-            "method": method,
-            "file": Path(path).name,
-            "n_episodes": len(ep_rows),
-        }
-        for k in args.report_keys:
-            ms = agg.get(k, {"mean": float("nan"), "std": float("nan")})
-            row[k] = _format_mean_std(ms["mean"], ms["std"], nd=3)
-        rows_out.append(row)
+    df = pd.DataFrame(rows)
 
-    # Sort by scenario then rank_by (numeric mean)
-    rank_key = str(args.rank_by)
+    # Ensure columns exist for plotting scripts
+    keep_cols = ["scenario", "method"]
 
-    def sort_key(r: dict[str, Any]) -> tuple[str, float]:
-        scen = str(r.get("scenario", ""))
-        # parse "m±s"
-        v = r.get(rank_key, "NA")
-        try:
-            m_str = str(v).split("±")[0]
-            m = float(m_str)
-        except Exception:
-            m = float("inf")
-        return (scen, m)
+    SLIDE_KEYS = [
+        "J_run",
+        "unmet_rate",
+        "relocation_km_total",
+        "charging_cost_eur_total",
+        "availability_demand_weighted",
+    ]
+    DECOMP_KEYS = ["J_avail_run", "J_reloc_run", "J_charge_run", "J_queue_run"]
 
-    rows_out.sort(key=sort_key)
+    for k in (SLIDE_KEYS + DECOMP_KEYS):
+        keep_cols += [f"{k}_mean", f"{k}_std"]
+    keep_cols += ["path"]
 
-    _to_csv(rows_out, Path(args.out_csv))
-    _to_md(rows_out, Path(args.out_md))
+    for c in keep_cols:
+        if c not in df.columns:
+            df[c] = np.nan
 
-    print(f"Wrote: {args.out_csv}")
-    print(f"Wrote: {args.out_md}")
+    df = df[keep_cols]
 
-    # Console: top-3 per scenario by rank_by mean (lower is better for J_run)
-    by_scenario: dict[str, list[dict[str, Any]]] = {}
-    for r in rows_out:
-        by_scenario.setdefault(str(r["scenario"]), []).append(r)
+    # Dedup
+    df = _dedup(df, args.dedup)
 
-    print(f"\n=== Top methods per scenario (ranked by mean of {rank_key}) ===")
-    for scen, lst in by_scenario.items():
-        # re-rank within scenario
-        lst2 = sorted(lst, key=lambda rr: sort_key(rr)[1])
-        print(f"\n[{scen}]")
-        for rr in lst2[:3]:
-            print(f"- {rr['method']}: {rank_key}={rr.get(rank_key)} (n={rr['n_episodes']}, file={rr['file']})")
+    # Sort
+    df["J_run_mean"] = pd.to_numeric(df["J_run_mean"], errors="coerce")
+    df = df.sort_values(["scenario", "J_run_mean", "method"], ascending=[True, True, True])
+
+    out_csv = Path(args.out_csv)
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(out_csv, index=False)
+    print(f"Saved summary CSV: {out_csv}")
+
+    # Print quick table per scenario
+    for scen in df["scenario"].dropna().unique():
+        sub = df[df["scenario"] == scen].copy()
+        print(f"\nScenario: {scen}")
+        show = sub[["method", "J_run_mean", "unmet_rate_mean", "relocation_km_total_mean", "charging_cost_eur_total_mean"]]
+        with pd.option_context("display.max_rows", 500, "display.width", 220):
+            print(show.to_string(index=False))
 
 
 if __name__ == "__main__":
