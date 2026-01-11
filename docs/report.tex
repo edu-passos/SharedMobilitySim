@@ -1,0 +1,490 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\begin{document}
+
+\title{
+  Shared Mobility Simulation Report\\
+  {\footnotesize \textsuperscript{*}Note: Sub-titles can be placed here}
+}
+
+\author{
+  \IEEEauthorblockN{Eduardo Passos}
+  \IEEEauthorblockA{
+    \textit{MSc in Artificial Intelligence} \\
+    \textit{University of Porto}\\
+    Porto, Portugal \\
+    up202205630@up.pt
+  }
+  \and
+  \IEEEauthorblockN{Guilherme Silva}
+  \IEEEauthorblockA{
+    \textit{MSc in Artificial Intelligence} \\
+    \textit{University of Porto}\\
+    Porto, Portugal \\
+    up202205298@up.pt
+  }
+  \and
+  \IEEEauthorblockN{Valentina Cadime}
+  \IEEEauthorblockA{
+    \textit{MSc in Artificial Intelligence} \\
+    \textit{University of Porto}\\
+    Porto, Portugal \\
+    up202206262@up.pt
+  }
+}
+
+
+\maketitle
+
+\begin{abstract}
+
+\end{abstract}
+
+\begin{IEEEkeywords}
+
+\end{IEEEkeywords}
+
+
+% TODO: Remove this section before submission
+\section*{Useful Rules:}
+
+\textbf{The 3-part rule: Introduction, Development, Conclusion}
+\begin{itemize}
+  \item Chapter: 3+ sections
+  \item Sections: 3+ paragraphs
+  \item Paragraphs: 3+ sentences
+\end{itemize}
+
+\textbf{The section-separation rule:}
+\begin{itemize}
+  \item If the content of a section fits in more subsections, the division should yield at least 2 subsections. Single subsections reflect bad content organization.
+\end{itemize}
+
+\textbf{Single-paragraph rule:}
+\begin{itemize}
+  \item Avoid using single paragraphs in the body of a section. A well-designed section will have at least 3 paragraphs (recall the 3-part rule)
+  \item \textbf{Exception - When to use single paragraphs?}
+  \begin{itemize}
+    \item Abstract (if the size is limited, e.g. as in conference papers)
+    \item Conclusion (the same as above)
+    \item As an introduction to chapters or sections
+  \end{itemize}
+\end{itemize}
+
+\textbf{Single-sentence-paragraph rule:}
+\begin{itemize}
+  \item Avoid using single-sentence paragraphs. A well-designed paragraph will have at least 3 sentences (recall the 3-part rule)
+  \item \textbf{Exception - When to use single-sentence paragraphs? To introduce:}
+  \begin{itemize}
+    \item Figures
+    \item Tables
+    \item Lists
+    \item Algorithms
+    \item Equations
+    \item Other non-textual elements
+  \end{itemize}
+\end{itemize}
+
+\textbf{Avoid too much empty space:}
+\begin{itemize}
+  \item Single-word-ending paragraphs
+  \item Whenever possible, try and fill the paragraph width in the last line of the paragraph
+  \item Whenever possible, try and fill the paragraph width when adding new figures and tables
+  \item Preferably, place figures and tables either at the top or the bottom of the page
+  \item Graphic elements in the middle of the page usually leave much empty space
+\end{itemize}
+
+\textbf{Figure vs. figure}
+\begin{itemize}
+  \item Generally, elements such as figures, tables, and equations, are whenever referring to a specific element in the text, are written with the first letter capitalized, followed by the number of the element, e.g. "As depicted in Figure 5, …"
+  \item When referring to a figure generically, without its number, it is not capitalized, e.g. "The figure below depicts the proposed architecture…", e.g. "…, as depicted in figures 5-7."
+  \item The same is valid for tables and equations. Consistency is key!
+\end{itemize}
+
+\textbf{State of the art vs. state-of-the-art}
+\begin{itemize}
+  \item Some compound nouns can also be used as adjectives, in which case they're written with hyphens, e.g. "This chapter presents the state of the art in AI.", e.g., "The state-of-the-art techniques are detailed in the next section.", e.g. "Data will be collected in real time.", e.g. "Real-time mechanisms support data exchange in our system."
+\end{itemize}
+
+\textbf{Numeric citations}
+\begin{itemize}
+  \item The numeric citations (e.g. [3] or [11-18] are generally used in conference papers due to space limitations) (see IEEE paper formats)
+  \item Do not start a sentence with a numeric citation. It doesn't make sense!e.g. "[3] presents an empirical study on ML applied to agriculture."e.g. "Silva (2019) presents an empirical study on ML applied to ..." \textbf{(better!)}
+  \item Hint: when the numeric citation is deleted, the text should still make sense!
+  \begin{itemize}
+    \item e.g. "In [3], authors present an empirical study on ML applied to agriculture." (rephrase!)
+    \item e.g. "Authors present an empirical study on ML applied to agriculture [3]."
+  \end{itemize}
+\end{itemize}
+
+\textbf{Formal documents}
+\begin{itemize}
+  \item A dissertation should be written with proper and adequate language, should be correct and objective, and should avoid bias
+  \item Avoid contractions, such as:
+  \begin{itemize}
+    \item Don't $\rightarrow$ do not
+    \item Doesn't $\rightarrow$ does not
+    \item That's $\rightarrow$ that is
+    \item It's $\rightarrow$ it is
+    \item Won't $\rightarrow$ will not
+    \item And others
+  \end{itemize}
+  \item Prefer these constructions instead:
+  \begin{itemize}
+    \item Like $\rightarrow$ such as (e.g. ``characteristics such as'')
+    \item So, \dots $\rightarrow$ Therefore (e.g. ``Therefore, it is plausible to\dots'')
+    \item On the other hand, \dots $\rightarrow$ make sure you start with ``On the one hand, \dots . On the other hand, \dots .''
+  \end{itemize}
+\end{itemize}
+
+\textbf{Work vs. works}
+
+Be careful with countable and uncountable nouns
+\begin{itemize}
+  \item \textbf{Works} (countable) -- self-contained things, as works of art or structures in engineering (e.g. ``The works by Van Gogh'' or bridges, tunnels, etc.)
+  \item \textbf{Work} (uncountable) -- the body of knowledge in science is one only, and every scientist contributes a piece to enrich it
+  \begin{itemize}
+    \item e.g. ``The pieces of work reported by both Mendes (2024) and Machado (2019) suggest that \dots''
+    \item Prefer to use ``Conclusions and future work'' instead
+  \end{itemize}
+  \item Countable alternatives to ``work'':
+  \begin{itemize}
+    \item ``Carvalho and colleagues carried out a series of studies to demonstrate their hypothesis [5].''
+    \item ``Different efforts are reported in the literature on this subject [2, 7, 9-11].''
+    \item ``Some empirical experiments were performed, which corroborate that idea [18, 21].''
+    \item ``Evaluation methods are also proposed by other authors (Carvalho, 2017; Mendes et al, 2025).''
+  \end{itemize}
+  \item In academic writing, ``research'' and ``data'' are two uncountable nouns that are notoriously difficult to use correctly. Never add ``s'' to pluralize ``research'' or ``data''. (Note that the word ``researches'' is only correct when used as the third-person singular of the verb ``to research''.)
+\end{itemize}
+
+\textbf{Ethical issues:}
+\begin{itemize}
+  \item Plagiarism and self-plagiarism
+  \begin{itemize}
+    \item Plagiarism often involves using someone else's words or ideas without proper citation, but you can also plagiarize yourself. Self-plagiarism means reusing work that you have already published or submitted for a class
+  \end{itemize}
+  \item Figure, data, and other elements
+  \begin{itemize}
+    \item The use of someone else's figures and art creation implies proper permissions to be used ``as is''
+    \item Citation is not enough!
+    \begin{itemize}
+      \item ``Taken from Author (year)'' or ``borrowed from Author (year) $\rightarrow$ requires authorization
+      \item ``Adapted from Author (year)'' $\rightarrow$ it is your own interpretation and requires no authorization
+      \item Alternatively, you can include a ``Source:\dots'' field in the Figure caption
+    \end{itemize}
+  \end{itemize}
+\end{itemize}
+
+\clearpage
+
+\section{Introduction}
+% TODO: REMOVE THIS WHEN WE CITE REAL REFERENCES - THIS CITATION IS NEEDED TO COMPILE THE DOCUMENT
+\textbf{\texttt{[PLACEHOLDER]}} Current shared mobility systems face significant challenges in balancing demand and supply. This report explores these challenges and proposes simulation-based solutions \cite{exampleRef}.
+
+\textit{
+  \textbf{TODOs:}
+  \begin{itemize}
+    \item Context
+    \item Problem statement. Clearly define the research question or technical challenge with a precise problem description and formal representations
+    \item Motivation (to solve the problem) / significance
+    \item Aim and goals
+    \item Aim: the main expected outcome of this research project (the big picture!)
+    \item Goals: specific objectives to be accomplished
+    \item Research questions
+    \item Hypotheses
+    \item Document/paper structure
+  \end{itemize}
+}
+
+This project focuses on the daily and strategic management of electric scooter fleets, aiming to minimize operating costs while maximizing the level of service to users, in both quantity and quality. This includes planning redistribution by truck, charging/recharging policies, designing user incentives to reduce imbalances, and demand-prediction algorithms. Practical applications include shared system administrators and researchers, mobility authorities, and smart cities.
+
+The simulation aims to replicate the operation of a shared micromobility system throughout the day, considering variables such as demand patterns, vehicle availability, battery levels, and recharging requirements. It will represent not only users requesting and completing trips, resulting in the movement of shared mobility vehicles throughout the city, but also on-site operators overseeing the shared mobility vehicles and respective stations, and performing fleet relocations to guarantee its most efficient distribution throughout the city without compromising the users' experience.
+
+By simulating the interactions between these entities, the objective is to evaluate and compare different balancing strategies under realistic urban conditions. The simulation will make it possible to measure how each approach affects the service through Key Performance Indicators (KPIs), in other words, measures and benchmarks, as will be described later. Examples include quality (vehicle availability and waiting time), operational efficiency (costs and distance traveled during redistribution), and system sustainability (energy consumption and battery utilization). Furthermore, another area of exploration could be to study the effect of limited battery autonomy and charging times on overall fleet performance.
+
+Ultimately, the simulation provides a controlled and flexible environment to test algorithms and management policies. It allows for the resolution of several problems, such as identification of bottlenecks, the quantification of trade-offs between cost and service quality, and the exploration of optimal or near-optimal strategies to maintain a balanced and efficient shared mobility system.
+
+The goal of the simulation problem is to identify which actions and strategies maximize fleet utilization, improve service quality, and minimize operational inefficiency. This will be done through modeling and analyzing the dynamics of a shared electric vehicle fleet within an urban environment in a certain spatial and temporal context. The focus will be on studying the imbalance in vehicle distribution caused by uneven and time-dependent demand: some areas experience shortages of available vehicles, while others accumulate unused ones.
+
+The eventual real-world manifestation of this process would be to support decision-making in managing shared electric vehicle fleets by evaluating different operational strategies and their impact on system performance. As such, and to pursue the defined goal, the model aims to simulate the system under varying researcher-defined strategies, such as vehicle relocation and charging policies, and to measure KPIs including unmet demand, vehicle availability, energy consumption, and operational costs.
+
+
+\section{Related Work}
+
+\textit{
+  \textbf{TODOs:}
+  \begin{itemize}
+    \item Review of existing literature.
+    \item Relevant concepts and studies.
+    \item Summarize background and related work to highlight gaps addressed by the project.
+    \item Discussion and critical analysis.
+  \end{itemize}
+}
+
+The problem falls within the field of Urban Mobility and, more specifically, the subfield of Shared Micromobility and Fleet Management. It addresses how cities can efficiently manage and balance fleets of shared electric vehicles to meet fluctuating demand patterns throughout the day. As a result, and similarly to many of the modelling projects that seek to study the real world, this issue lies at the intersection of several disciplines.
+
+From the perspective of transportation science, the problem concerns the modeling of human movement patterns and travel demand within urban environments. It involves understanding how people choose modes of transport, how their choices change with time of day, weather, or location, and how these behaviors influence the spatial distribution of shared vehicles.
+
+In the area of optimization and operations research, the challenge translates into a set of complex decision problems. These include vehicle rebalancing (determining how and when to move vehicles from low-demand to high-demand areas), routing and scheduling of redistribution trucks, and the design of user incentives to encourage self-balancing behavior. Such problems are often formulated as variants of the Vehicle Routing Problem (VRP), capacitated network flow models, or stochastic optimization problems. Furthermore, the possibility of incorporating machine learning brings a predictive and adaptive layer to the system.
+
+
+\section{Materials and Methods}
+
+\textit{
+  \textbf{TODOs:}
+  \begin{itemize}
+    \item Problem formalization: what to solve?
+    \item Materials:
+    \begin{itemize}
+      \item Data
+      \item Tools
+      \item Techniques
+    \end{itemize}
+    \item Methods: how to solve it?
+    \item Solution design
+  \end{itemize}
+}
+
+
+The system is formalized as an agent-based discrete-time simulation shaped by the interactions between a single operator (the agent), the entities, and finite network resources. The agent acts by controlling specific parameters that influences either scooter relocation and charging. The primary entities are the customers and the vehicle fleet. Customers are modeled as transient entities represented by stochastic arrival events, while the fleet consists of vehicle counts circulating between nodes. These entities interact with stations, which function as passive resources within the system. Stations are characterized by static attributes such as geographic location, parking capacity (slots), and charger availability, effectively constraining the flow of entities by limiting parking and charging capcities.
+
+The simulation operates within a dynamic environment, whose specific instantiation for the experiments conducted is defined in \ref{sec:environ_spec}, subject to external variations, including time-of-day effects, weather conditions, and special events. These environmental factors, combined with the stochastic user demand, constitute the \textit{uncontrollable exogenous variables}, corresponding to the probabilistic part of the system, as detailed in \ref{sec:sim_dynamics}.
+
+The instantaneous status of the system is captured by state variables, such as the number of vehicles, State of Charge (SoC) metrics, and the size of user queues at each station. These metrics correspond to the \textit{endogenous variables} formally defined in \ref{sec:sim_state}. The evolution of this state is driven by discrete events, including customer arrivals, trip completions, and operator interventions, which trigger specific activities including vehicle rental, fleet relocation, and battery charging. The infrastructure parameters and resource limits that bound these activities form the \textit{controllable exogenous variables}, explored in \ref{sec:sim_config}. Additionally, the specific relocation and charging plans built by the operational policies at each time step are also controllable exogenous variables, as they are generated externally to the simulation dynamics, by the agent.
+
+\subsection{\label{sec:sim_config}Simulation Configuration}
+The simulation environment is characterized by a set of controllable exogenous parameters (implemented in the \texttt{SimConfig} dataclass).
+\begin{itemize}
+  \item $\Delta t$: Discrete simulation time step duration (minutes).
+  \item $H$: Total simulation horizon (hours).
+  \item $C \in \mathbb{N}^N$: Vector of station capacities, where $C_i$ is the maximum number of vehicles allowed at station $i$.
+  \item $\mathcal{T} \in \mathbb{R}^{N \times N}$: Travel time matrix, where $\tau_{ij}$ represents the effective transit time between station $i$ and $j$.
+  \item $\mathcal{D} \in \mathbb{R}^{N \times N}$: Distance, where $d_{ij}$ represents the distance (km) between station $i$ and $j$.
+  \item $K \in \mathbb{N}^N$: Vector of station charging capacities (number of plugs) at each node.
+  \item $\rho \in \mathbb{R}^N$: Charging rate vector, where $\rho_i$ denotes the SoC gain per hour at station $i$.
+  \item $B$: Total battery capacity per vehicle (kWh).
+  \item $c_{energy}$: Unit cost of energy (€/kWh).
+  \item $s_{min}$: Minimum SoC threshold required for a vehicle to be eligible for rental.
+  \item $\gamma_{res} \in \{0,1\}$: Operation policy parameter indicating if vehicles connected to the grid should be reserved (unavailable for rental) during the active charging time step.
+\end{itemize}
+
+\subsection{\label{sec:sim_state}Simulation State}
+At any time $t$, the system state is defined by endogenous variables tracking the fleet and demand status (implemented as attributes of the \texttt{Sim} class):
+\begin{itemize}
+  \item $\mathbf{x}_t \in \mathbb{N}^N$: Vehicle count at each station.
+  \item $\mathbf{s}_t \in [0,1]^N$: Average SoC at each station.
+  \item $\mathbf{m}_t \in \mathbb{R}^N$: Aggregated energy "mass" at each station. Calculated as $m_{i,t} = x_{i,t} \cdot s_{i,t}$.
+  \item $\mathbf{q}_t \in \mathbb{N}^N$: Number of users currently queuing for a vehicle.
+  \item $\Psi_t$: Set of active trips currently in transit, implemented as a min-heap priority queue sorted by arrival time. A trip is a tuple $(t_{arrival}, j, \delta_{soc}, s_{depart})$, denoting arrival time, destination station, SoC usage, and departure SoC.
+\end{itemize}
+
+\subsection{\label{sec:sim_dynamics}Simulation Dynamics}
+
+The state transition $\mathcal{S}_t \rightarrow \mathcal{S}_{t+1}$ occurs via the following sequential steps, in which the uncontrollable exogenous variables manifest as stochastic events:
+
+\subsubsection{Demand and Departures}
+% TODO: Review math symbol notation for number of served users
+Demand arrivals $\mathbf{A}_t$ follow a non-homogeneous Poisson process. A vehicle at station $i$ is rentable only if it satisfies the minimum SoC threshold ($s_{i,t} > s_{min}$). As such, the number of served users, $d_{out}^i$, is limited by the rentable stock.
+User destinations are sampled from the origin-destination probability matrix $P \in \mathbb{R}^{N \times N}$, where $p_{ij}$ represents the probability of a user departing from station $i$ terminating their trip at station $j$. To simplify the simulation and focus on rebalancing dynamics rather than complex routing patterns, we assume a uniform distribution:
+\begin{equation}
+    p_{ij} = \frac{1}{N}, \quad \forall j \in \{1, \dots, N\}
+\end{equation}
+In other words, a user picking up a vehicle at any station is equally likely to ride to any other station in the network. When a user departs, a vehicle is removed from $\mathbf{x}_t$, and a trip event is pushed to the trip heap $\Psi$.
+
+\subsubsection{Trip Completion}
+Trips scheduled to arrive at time $t$ are processed. For a trip arriving at $j$ with energy consumption $\delta_{soc}$:
+\begin{equation}
+  x_{j,t} \leftarrow \min(x_{j,t} + 1, C_j)
+\end{equation}
+If $x_{j,t} = C_j$, the station is full and the system attempts to reroute the user to the nearest available station $k$.
+
+\subsubsection{Relocation Actions}
+Following a relocation plan, an operator moves vehicles between stations, updating stocks and energy mass accordingly, with the goal of balancing the fleet distribution. The relocation cost is computed based on the distance matrix $\mathcal{D}$ and the number of vehicles moved.
+
+\begin{equation}
+  R_t = \sum_{(i,j,k) \in \text{Plan}_t} k_{actual} \cdot d_{ij}
+\end{equation}
+where $k_{actual}$ is the actual number of vehicles relocated from station $i$ to $j$, constrained by available stock at $i$ and capacity at $j$.
+
+\subsubsection{Charging Logic}
+Charging is applied to idle vehicles connected to plugs according to a charging plan. The number of charging vehicles $k^{plug}_{i,t}$ is constrained by station stock $x_{i,t}$ and available chargers $K_i$. The energy mass update is:
+\begin{equation}
+    m_{i,t} \leftarrow m_{i,t} + k^{plug}_{i,t} \cdot \rho_i \cdot \Delta t
+\end{equation}
+
+
+\subsubsection{Optimization Objective}
+% TODO: CHECK NOMENCLATURE WITH WHAT IS USED ABOVE (LoS, etc.)
+The goal is to find a control policy $\pi(\mathcal{S}_t) \rightarrow \mathcal{A}_t$, comprising relocation decisions and charging schedules, that minimizes the cumulative operational cost over the horizon $T$. The objective function represents a trade-off between Level of Service (LoS) and operational expenditure. As such, this is the decision criteria used to evaluate different agents and policies controlling the system. The optimization problem is formally defined as minimizing $\sum_{t=0}^{T} J_t$, where the step-wise cost $J_t$ is:
+
+\begin{equation}
+  J_t = w_{U} \frac{U_t}{U_s} + w_{R} \frac{R_t}{R_s} + w_{C} \frac{C_t}{C_s} + w_{Q} \frac{Q_t}{Q_s}
+\end{equation}
+
+% TODO: Introduction to the cost components might need readjustment according to what is done with the table of KPIs below
+The cost components correspond to the following system metrics:
+\begin{itemize}
+  \item $U_t$: \textbf{Unavailability Rate}. Defined as $1 - \frac{served\_new_t}{demand_t}$, representing the proportion of new arrivals that could not be served immediately.
+  \item $R_t$: \textbf{Relocation Distance}. The total kilometers traveled by the operator's fleet to rebalance vehicles during step $t$.
+  \item $C_t$: \textbf{Charging Cost}. The financial cost (€) incurred by charging vehicles, calculated based on energy consumed (kWh) and unit electricity price.
+  \item $Q_t$: \textbf{Queue Backlog}. The total number of users currently waiting for vehicles across all stations. Unlike $U_t$, which measures instantaneous failure, $Q_t$ penalizes persistent congestion.
+\end{itemize}
+
+The coefficients $w_{(\cdot)}$ represent the importance weights of each objective. To ensure numerical stability and comparable magnitudes between disparate units (ratios, kilometers, Euros, and user counts), each term is normalized by a baseline scale factor ($U_s, R_s, C_s, Q_s$).
+
+% TODO: Update KPIs according to the ones we are actually using or remove if this is redundant
+% The performance is measured by \textbf{Output Variables (KPIs)}, as detailed in Table \ref{tab:kpis}.
+
+% \begin{table}[htbp]
+%   \caption{Key Performance Indicators}
+%   \begin{center}
+%     \begin{tabular}{|l|p{3.5cm}|l|}
+%       \hline
+%       \textbf{KPI} & \textbf{Meaning} & \textbf{Goal} \\
+%       \hline
+%       Availability & Fraction of stations with at least one vehicle & Maximize \\
+%       \hline
+%       Unmet demand & Number of users who could not find a scooter & Minimize \\
+%       \hline
+%      Standard deviation & Measure of imbalance across the network & Minimize \\
+%       \hline
+%       Scooters in use & Vehicles currently rented or moving & Maximize \\
+%       \hline
+%       Idle station time & Time periods when a station has no activity & Minimize \\
+%       \hline
+%       Relocation distance & Total distance traveled during rebalancing (km) & Minimize \\
+%       \hline
+%       Energy cost & Cumulative electricity cost for charging & Minimize \\
+%       \hline
+%       Success rate & Ratio of served users to total demand & Maximize \\
+%       \hline
+%    \end{tabular}
+%  \label{tab:kpis}
+%  \end{center}
+%\end{table}
+
+\subsection{Methods}
+
+With the creation and formalization of the simulation environment, it is important to concretely describe the interactions between the agent and the system. However, a distinction must first be made between \textit{operation policies} (or planners) and \textit{control policies} (learned policies), as they represent connected, but distinct layers of decision-making within the system, and the similar terminology can lead to confusion.
+
+\subsubsection{Operation Policies vs. Control Policies}
+
+Scooter relocation and charging strategies, with which the agent intervenes in the system, take the form of a list of movements of $k$ scooters between station $i$ and $j$, and the number of scooters to be charged at each station, respectively. These plans are generated by algorithms referred to as \textit{operation policies}, but more distinctly as \textit{planners}. The planners are heuristic algorithms with explicitly defined rules, in contrast to \textit{control policies} learned through Reinforcement Learning (RL) techniques, which adapt based on experience and feedback from the environment, and map observations (system states) to actions.
+
+Furthermore, the agent's action vector $\mathbf{a}_t = [a_0, a_1, a_2, a_3] \in [0,1]^4$. dictates the parameters used by the planners to generate these relocation and charging plans. Therefore, although the generated plans directly affect system behavior, they are not an independent control policy. Instead, they represent an intermediate abstraction layer that heuristically (and deterministically) translates the agent's actions into executable interventions in the environment. As the decision-making authority and optimization objective remain with the agent's learned control policy, this renaming separates the two concepts. It clarifies that planners are not granted the same level of control, even though they derive their actions from the agent's outputs and may appear similar at a nomenclatural level.
+
+\subsubsection{\label{sec:agent_env}Agent-Environment Interaction}
+
+The simulation environment's design, for better modularity and separation of concerns, was designed according to a standard reinforcement learning interface, similar to that of Gymnasium~\cite{towers2024gymnasium}, through the implementation of the \texttt{reset} and \texttt{step} methods, which initialize the environment and apply an action, respectively. This design choice allows for near-seamless integration with RL libraries, only requiring the wrapping of the environment to match the expected input and output data structures' formats. As an example, StableBaselines3~\cite{stable-baselines3} was used to implement the Soft Actor-Critic (SAC) agent for continuous control experiments, requiring only a small wrapper around the environment to convert between NumPy arrays and Gymnasium spaces.
+
+On the agent's actions, the previously explained abstraction from concrete plans to normalized parameters is crucial. It generalizes and simplifies the agent's decision-making process, allowing it to focus on high-level strategy rather than low-level operational details, enabling the use of continuous control algorithms that can efficiently explore and optimize within this bounded action space.
+
+As a result, the overall interaction loop at each time step $t$ is as follows: the agent selects an action $\mathbf{a}_t$ according to its control policy $\pi(\mathcal{S}_t)$, either including the system state $\mathcal{S}_t$ as input or not, as will be detailed in \ref{}. Each of the four components of the action vector is mapped to the specific parameters of the relocation and charging planners being used, which generate the respective plans. These plans are executed within the simulation environment, leading to a state transition to $\mathcal{S}_{t+1}$, and the agent receives a reward based on the defined objective function. This loop continues until the end of the simulation horizon, allowing the agent to learn and adapt its control policy over time.
+
+\subsubsection{Planners Implemented}
+
+\paragraph{Relocation Planners}
+
+% TODO: Actions don't define stuff in budgeted relocation and slack charging, I don't know where the values are coming from.
+\begin{itemize}
+  \item \textbf{Greedy Relocation}: Identifies surplus stations (fill ratio $> \text{high}$) and deficit stations (fill ratio $< \text{low}$), then iteratively moves vehicles to balance toward a target fill ratio. Donor stations are prioritized by proximity. The action components map to: $a_0 \rightarrow \text{low} \in [0.1, 0.3]$ and $a_1 \rightarrow \text{high} \in [0.6, 0.9]$, $a_2 \rightarrow \text{target} \in [0.4, 0.8]$.
+  \item \textbf{Budgeted Relocation}: Extends greedy logic with a hard constraint on total relocation distance ($\text{km\_budget}$), explicitly capping operational costs per time step. The budget is derived from $a_2 \in [0,1]$, mapped to $[10, 50]$ km. This prevents excessive redistribution in cost-sensitive scenarios.
+  \item \textbf{No-op Relocation}: Returns an empty plan, serving as a baseline to quantify the impact of active rebalancing.
+\end{itemize}
+
+\paragraph{Charging Planners}
+
+\begin{itemize}
+  \item \textbf{Greedy Charging}: Prioritizes stations with high demand and low SoC using score $\lambda_i (1 - s_i)$, allocating plugs in descending order of urgency. The agent controls the fraction of total charging capacity utilized via $a_3 \rightarrow \text{charge\_budget\_frac} \in [0.05, 0.40]$. This ensures vehicles are charged where they are most needed.
+  \item \textbf{Slack Charging}: Applies a demand-gating mechanism, only charging at stations below a demand quantile threshold (controlled by $a_3 \rightarrow \text{lam\_charge\_quantile} \in [0.3, 0.7]$). This mitigates availability loss by concentrating charging at low-demand stations during off-peak periods.
+  \item \textbf{No-op Charging}: As a baseline, plugs zero vehicles, isolating the effect of charging decisions in comparative experiments.
+\end{itemize}
+
+\subsubsection{Agents Implemented}
+
+The system evaluates four distinct control policies, each representing a different approach to learning operational parameters within the bounded action space $\mathbf{a}_t \in [0,1]^4$.
+
+% \paragraph{Constant-Action Baseline}
+% A non-adaptive policy that applies a fixed action vector throughout the entire episode. This serves as a performance floor, isolating planner behavior from adaptive control. The action remains unchanged regardless of system state, enabling direct measurement of how well hand-tuned parameters perform under varying conditions. This baseline is essential for quantifying the benefit of adaptive strategies.
+
+\paragraph{Heuristic Agent}
+
+A rule-based reactive controller (\texttt{heuristic.py}) that computes actions from observation features without learning. It maintains exponentially weighted moving averages (EWMA) of recent relocation distance and queue rate to detect operational trends. Actions are derived through explicit logic: relocation thresholds ($a_0, a_1$) adapt to queue pressure and capacity imbalance, the target fill ratio ($a_2$) responds to peak-hour detection and system throttling, and charging intensity ($a_3$) scales with low-SoC tail percentiles. This agent represents domain-engineered intelligence, suitable for interpretable systems where explicit control rules are preferred over black-box learning.
+
+\paragraph{Episode-Level Bandit (UCB1)}
+
+% TODO: The action vector actually doesn't remain constant, if we count km_budget and charge_budget_frac as part of the action vector. Maybe rephrase to "the same constant action vector is applied at every tick within an episode, and only the planner budget parameters vary between episodes"?
+A stateless multi-armed bandit (\texttt{bandit\_param\_arms.py}) that selects discrete planner parameter combinations (arms) based on episode-level rewards. Each arm represents a fixed pair (\texttt{km\_budget}, \texttt{charge\_budget\_frac}). The agent applies Upper Confidence Bound (UCB1) selection, balancing exploitation of high-performing arms with exploration of untried configurations. Crucially, the same constant action vector is applied at every tick within an episode, for all episodes. Only the planner budget parameters vary between episodes. After all episodes are run, the agent converges to the arm with the highest average reward. As a very simple RL approach, it provides a baseline for learning performance without state-dependent adaptation, isolating the value of parameter tuning alone.
+
+\paragraph{Contextual Bandit with Receding Horizon (LinUCB)}
+
+A context-aware bandit (\texttt{bandit\_contextual\_rh.py}) that selects arms within each episode based on aggregated system features. The agent extracts a 16-dimensional context vector from observations (fill ratio statistics, SoC percentiles, queue metrics, time-of-day) and applies disjoint LinUCB with per-arm linear models. Arms correspond to discrete budget pairs (\texttt{km\_budget}, \texttt{charge\_budget\_frac}), reselected every \texttt{block\_minutes}. This receding-horizon strategy enables intra-episode adaptation to evolving conditions (e.g., shifting from low to high charging budget as SoC degrades), while maintaining tractable exploration through ridge-regularized least-squares updates. The context dimensionality and block granularity balance responsiveness against sample efficiency, making it well-suited for non-stationary demand scenarios where coarse temporal adaptation outperforms purely reactive heuristics.
+
+\paragraph{Soft Actor-Critic (SAC)}
+
+A Deep RL agent (\texttt{sac.py}) that learns a continuous control policy $\pi(\mathbf{o}_t) \rightarrow \mathbf{a}_t$ through off-policy actor-critic optimization. Observations are flattened into a single vector from per-station state and temporal features. The agent is trained with frame-skipping (action repeat, default 6 steps $\approx$ 30 min), reducing decision frequency to stabilize learning in long-horizon episodes. SAC's entropy-regularized objective encourages exploration while maximizing cumulative reward, enabling it to discover non-obvious action sequences that balance service quality and operational cost across diverse scenarios. This model is justified when sufficient training data is available and the optimal policy exhibits complex, non-linear dependencies that cannot be captured by parametric heuristics or linear contextual models.
+
+
+\subsubsection{Implementation Tools}
+The experimental simulation was implemented in \textbf{Python}, using the following libraries:
+\begin{itemize}
+  \item \textbf{Gymnasium}~\cite{towers2024gymnasium}: The environment follows closely the standard Gymnasium interface, exposing \texttt{observation\_space} (state representation observed) and \texttt{action\_space} (possible actions to apply) to facilitate the integration of RL agents.
+  \item \textbf{StableBaselines3}~\cite{stable-baselines3}: Used for implementing advanced learning-based controllers, specifically the Soft Actor-Critic (SAC) agent used for continuous control experiments.
+  \item \textbf{NumPy}~\cite{harris2020array}: For high-performance vectorized state updates, numerical computations and stochastic generations.
+  \item \textbf{NetworkX}~\cite{SciPyProceedings_11}: For graph traversal, distance matrix computation, and managing network connectivity.
+\end{itemize}
+
+\subsection{\label{sec:environ_spec}External Data}
+The simulation environment is grounded in realistic topological data. The road network is extracted using OSMnx~\cite{https://doi.org/10.1111/gean.70009} for the city of Porto, Portugal, as if we're riding a bike, as it is the most similar mode of transport to electric scooters. For the experimental setup in this project, the network is then simplified to a graph of $N=10$ randomly selected stations (nodes) within the city limits, separate from each other by at least 500 meters. Each node is connected to every other node, with the edges retaining the shortest-path distance between them. This is done to abstract away the minute details of routing, which provide little meaning to the problem at hand, while preserving realistic inter-station distances. The travel time between stations is derived from these distances, assuming a constant average speed of 15 km/h, typical for shared electrical scooters in urban settings, and within the speed limits defined in Portuguese traffic legislation \cite{DL102B2020}.
+
+As the configuration of the simulation environment r
+
+\subsection{Solution Design and Experimental Setup}
+
+With the specific instatiation of the simulation environment generated and defined,
+
+
+
+\section{Results and Discussion}
+
+\textit{
+  \textbf{TODOs:}
+  \begin{itemize}
+    \item Methods to collect results
+    \item Result presentations (graphs, charts, diagrams, tables,
+    associations)
+    \item Critical discussion of bad results
+    \item Critical discussion of good results
+    \item Focus on counter-intuitive results
+    \item Focus on additional results (other than the rest of the literature)
+  \end{itemize}
+}
+
+\section{Conclusion and Future Work}
+\textit{
+  \textbf{TODOs:}
+  \begin{itemize}
+    \item Remark the conclusions drawn from the related work and gap analysis.
+    \item Remark problem and goals.
+    \item Remark the main results and findings.
+    \item Summarize the main contributions.
+    \item Scientific
+    \item Application
+    \item Technological
+    \item Future work
+    \item Further developments (how to improve the current work)
+    \item Future opportunities / R\&D paths (spin-off projects/problems of the current work)
+  \end{itemize}
+}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
