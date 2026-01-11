@@ -5,6 +5,7 @@
 \usepackage{graphicx}
 \usepackage{textcomp}
 \usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
 
 \begin{document}
 
@@ -252,21 +253,89 @@ In the area of optimization and operations research, the challenge translates in
 }
 
 
-\subsection{System Model}
-The simulation model comprises several interactions between entities:
-\begin{enumerate}
-  \item \textbf{Station}: Use to hold vehicles and act as a charging infrastructure. Properties include capacity (slots), number of chargers, and distance/travel time to other stations.
-  \item \textbf{Vehicle}: Moves between stations and consumes/charges energy. Tracked by its Battery State of Charge (SoC).
-  \item \textbf{Customers}: Represent demand. They are characterized by arrival rates (people per time interval) and origin-destination probabilities.
-  \item \textbf{Environment}: External factors affecting the system, such as diurnal variation (time of day), weather factors, and special events (e.g., concerts).
-  \item \textbf{Operator}: Represents the control plan using policies for relocation, charging, and special user incentives.
-\end{enumerate}
+The system is formalized as an agent-based discrete-time simulation shaped by the interactions between a single operator (the agent), the entities, and finite network resources. The agent acts by defining a 4-dimensional continuous action vector $\mathbf{a}_t = [a_0, a_1, a_2, a_3] \in [0,1]^4$, where each component corresponds to a specific parameter that influences scooter relocation and charging. The primary entities are the customers and the vehicle fleet. Customers are modeled as transient entities represented by stochastic arrival events, while the fleet consists of vehicle counts circulating between nodes. These entities interact with stations, which function as passive resources within the system. Stations are characterized by static attributes such as geographic location, parking capacity (slots), and charger availability, effectively constraining the flow of entities by limiting parking and charging capcities.
 
-\subsection{System Variables}
-The system defines \textbf{Exogenous Variables} which are not controlled by the operator, including demand rate (Poisson arrival intensity), origin-destination probability matrix, weather influence, and travel times.
+The simulation operates within a dynamic environment, whose specific instantiation for the experiments conducted is defined in \ref{sec:environ_spec}, subject to external variations, including time-of-day effects, weather conditions, and special events. These environmental factors, combined with the stochastic user demand, constitute the \textit{uncontrollable exogenous variables} which dictate the probabilistic part of the system, as detailed in \ref{sec:sim_dynamics}.
 
-\textbf{Endogenous Variables} describe the system's internal state, such as the number of vehicles available at each station, average battery SoC, number of waiting customers, and ongoing trips.
+The instantaneous status of the system is captured by state variables, such as the number of vehicles, State of Charge (SoC) metrics, and the size of user queues at each station. These metrics correspond to the \textit{endogenous variables} formally defined in \ref{sec:sim_state}. The evolution of this state is driven by discrete events, including customer arrivals, trip completions, and operator interventions, which trigger specific activities including vehicle rental, fleet relocation, and battery charging. The infrastructure parameters and resource limits that bound these activities form the \textit{controllable exogenous variables}, explored in \ref{sec:sim_config}. Additionally, the specific relocation and charging plans built by the operational policies at each time step are also controllable exogenous variables, as they are generated externally to the simulation dynamics, by the agent.
 
+
+% TODO: Establish differences between (so-called, according to MS slides) operation policies and ML policies (control policies). Completely different things.
+
+\subsection{\label{sec:sim_config}Simulation Configuration}
+The simulation environment is characterized by a set of controllable exogenous parameters (implemented in the \texttt{SimConfig} dataclass).
+\begin{itemize}
+  \item $\Delta t$: Discrete simulation time step duration (minutes).
+  \item $H$: Total simulation horizon (hours).
+  \item $C \in \mathbb{N}^N$: Vector of station capacities, where $C_i$ is the maximum number of vehicles allowed at station $i$.
+  \item $\mathcal{T} \in \mathbb{R}^{N \times N}$: Travel time matrix, where $\tau_{ij}$ represents the effective transit time between station $i$ and $j$.
+  \item $\mathcal{D} \in \mathbb{R}^{N \times N}$: Relocation cost matrix, where $d_{ij}$ represents the distance or cost coefficient for moving vehicles between stations $i$ and $j$.
+  \item $K \in \mathbb{N}^N$: Vector of charging station capacities (number of plugs) at each node.
+  \item $\rho \in \mathbb{R}^N$: Charging rate vector, where $\rho_i$ denotes the SoC gain per hour at station $i$.
+  \item $B$: Total battery capacity per vehicle (kWh).
+  \item $c_{energy}$: Unit cost of energy (€/kWh).
+  \item $s_{min}$: Minimum SoC threshold required for a vehicle to be eligible for rental.
+  \item $\gamma_{res} \in \{0,1\}$: Operation policy parameter indicating if vehicles connected to the grid should be reserved (unavailable for rental) during the active charging time step.
+\end{itemize}
+
+\subsection{\label{sec:sim_state}Simulation State}
+At any time $t$, the system state is defined by endogenous variables tracking the fleet and demand status (implemented as attributes of the \texttt{Sim} class):
+\begin{itemize}
+  \item $\mathbf{x}_t \in \mathbb{N}^N$: Vehicle count at each station.
+  \item $\mathbf{s}_t \in [0,1]^N$: Average SoC at each station.
+  \item $\mathbf{m}_t \in \mathbb{R}^N$: Aggregated energy "mass" at each station. Calculated as $m_{i,t} = x_{i,t} \cdot s_{i,t}$.
+  \item $\mathbf{q}_t \in \mathbb{N}^N$: Number of users currently queuing for a vehicle.
+  \item $\Psi_t$: Set of active trips currently in transit, implemented as a min-heap priority queue sorted by arrival time. A trip is a tuple $(t_{arrival}, j, \delta_{soc}, s_{depart})$, denoting arrival time, destination station, SoC usage, and departure SoC.
+\end{itemize}
+
+\subsection{\label{sec:sim_dynamics}Simulation Dynamics}
+
+The state transition $\mathcal{S}_t \rightarrow \mathcal{S}_{t+1}$ occurs via the following sequential logic step, in which the uncontrollable exogenous variables manifest as stochastic events:
+
+\subsubsection{Demand and Departures}
+Demand arrivals $\mathbf{A}_t$ follow a non-homogeneous Poisson process. A vehicle at station $i$ is rentable only if it satisfies the minimum SoC threshold ($s_{i,t} > s_{min}$). As such, the number of served users, $d_{out}^i$, is limited by the rentable stock.
+User destinations are sampled from the origin-destination probability matrix $P \in \mathbb{R}^{N \times N}$, where $p_{ij}$ represents the probability of a user departing from station $i$ terminating their trip at station $j$. To simplify the simulation and focus on rebalancing dynamics rather than complex routing patterns, we assume a uniform distribution:
+\begin{equation}
+    p_{ij} = \frac{1}{N}, \quad \forall j \in \{1, \dots, N\}
+\end{equation}
+This implies that a user picking up a vehicle at any station is equally likely to ride to any other station in the network. When a user departs, a vehicle is removed from $\mathbf{x}_t$, and a trip event is pushed to the event heap $\Psi$.
+
+\subsubsection{Trip Completion}
+Trips scheduled to arrive at time $t$ are processed. For a trip arriving at $j$ with energy consumption $\delta_{soc}$:
+\begin{equation}
+    x_{j,t} \leftarrow \min(x_{j,t} + 1, C_j)
+\end{equation}
+If $x_{j,t} = C_j$, the station is full and the system attempts to reroute the user to the nearest available station $k$.
+
+\subsubsection{Relocation Actions}
+Following a relocation plan, an operator moves vehicles between stations, updating stocks and energy mass accordingly, with the goal of balancing the fleet distribution.
+
+\subsubsection{Charging Logic}
+Charging is applied to idle vehicles connected to plugs according to a charging plan. The number of charging vehicles $k^{plug}_{i,t}$ is constrained by station stock $x_{i,t}$ and available chargers $K_i$. The energy mass update is:
+\begin{equation}
+    m_{i,t} \leftarrow m_{i,t} + k^{plug}_{i,t} \cdot \rho_i \cdot \Delta t
+\end{equation}
+
+
+\subsubsection{Optimization Objective}
+% TODO: CHECK NOMENCLATURE WITH WHAT IS USED ABOVE (LoS, etc.)
+The goal is to find a control policy $\pi(\mathcal{S}_t) \rightarrow \mathcal{A}_t$, comprising relocation decisions and charging schedules, that minimizes the cumulative operational cost over the horizon $T$. The objective function represents a trade-off between Level of Service (LoS) and operational expenditure. As such, this is the decision criteria used to evaluate different agents and policies controlling the system. The optimization problem is formally defined as minimizing $\sum_{t=0}^{T} J_t$, where the step-wise cost $J_t$ is:
+
+\begin{equation}
+  J_t = w_{U} \frac{U_t}{U_s} + w_{R} \frac{R_t}{R_s} + w_{C} \frac{C_t}{C_s} + w_{Q} \frac{Q_t}{Q_s}
+\end{equation}
+
+The cost components correspond to the following system metrics:
+\begin{itemize}
+  \item $U_t$: \textbf{Unavailability Rate}. Defined as $1 - \frac{served\_new_t}{demand_t}$, representing the proportion of new arrivals that could not be served immediately.
+  \item $R_t$: \textbf{Relocation Distance}. The total kilometers traveled by the operator's fleet to rebalance vehicles during step $t$.
+  \item $C_t$: \textbf{Charging Cost}. The financial cost (€) incurred by charging vehicles, calculated based on energy consumed (kWh) and unit electricity price.
+  \item $Q_t$: \textbf{Queue Backlog}. The total number of users currently waiting for vehicles across all stations. Unlike $U_t$, which measures instantaneous failure, $Q_t$ penalizes persistent congestion.
+\end{itemize}
+
+The coefficients $w_{(\cdot)}$ represent the importance weights of each objective. To ensure numerical stability and comparable magnitudes between disparate units (ratios, kilometers, Euros, and user counts), each term is normalized by a baseline scale factor ($U_s, R_s, C_s, Q_s$).
+
+% TODO: Update KPIs according to the ones we are actually using.
 The performance is measured by \textbf{Output Variables (KPIs)}, as detailed in Table \ref{tab:kpis}.
 
 \begin{table}[htbp]
@@ -297,13 +366,15 @@ The performance is measured by \textbf{Output Variables (KPIs)}, as detailed in 
   \end{center}
 \end{table}
 
-\subsection{Decision Criteria}
-System performance is evaluated through a multi-objective score that combines Service quality, Operational cost, and Workload. Formally, policies are benchmarked using:
-\begin{equation}
-  Score = \alpha \cdot Q_{uality} + \beta \cdot C_{ost} + \gamma \cdot W_{orkload}
-\end{equation}
-where $\alpha$, $\beta$, and $\gamma$ are policy weights.
+\subsection{Methods}
 
+With the creation and formalization of the simulation environment, it is important to concretely describe the interactions between the agent and the system. However, a distinction must first be made between \textit{operation policies} (or planners) and \textit{control policies} (learned policies), as they represent connected, but distinct layers of decision-making within the system, and the similar terminology can lead to confusion.
+
+Scooter relocation and charging strategies, with which the agent intervenes in the system, take the form of a list of movements of $k$ scooters between station $i$ and $j$, and the number of scooters to be charged at each station, respectively. These plans are generated by algorithms referred to as \textit{operation policies}, but more distinctly as \textit{planners}. The planners are heuristic algorithms with explicitly defined rules, in contrast to \textit{control policies} learned through Reinforcement Learning (RL) techniques, which adapt based on experience and feedback from the environment, and map observations (system states) to actions.
+
+Furthermore, as described previously, the agent's action vector $\mathbf{a}_t$ dictates the parameters used by the planners to generate these relocation and charging plans. Therefore, although the generated plans directly affect system behavior, they are not an independent control policy. Instead, they represent an intermediate abstraction layer that heuristically (and deterministically) translates the agent's actions into executable interventions in the environment. As the decision-making authority and optimization objective remain with the agent's learned control policy, this renaming separates the two concepts. It clarifies that planners are not granted the same level of control, even though they derive their actions from the agent's outputs and may appear similar at a nomenclatural level.
+
+% TODO: Update
 Baseline policies include:
 \begin{itemize}
   \item \textbf{Greedy Rebalancing}: Moving scooters from overfilled stations ($x > 0.8C$) to depleted ones ($x < 0.2C$).
@@ -311,20 +382,27 @@ Baseline policies include:
   \item \textbf{Random Demand Scenario}: A neutral benchmark without relocation.
 \end{itemize}
 
-\subsection{Data Requirements}
-The project relies on synthetic and open geographical data to represent a small-scale micromobility system in an urban environment. We use OpenStreetMap (OSM) via the OSMnx library to extract the road/bike network for the city of Porto. A synthetic generation of 15 representative micromobility stations is used, with distances computed from the OSM graph.
-
-Assumptions for the experimental setup include:
+\subsubsection{Implementation Tools}
+The experimental simulation was implemented in \textbf{Python}, using the following libraries:
 \begin{itemize}
-  \item 15 stations approximating a city-center zone (1-3 km between nodes).
-  \item Constant average speed of 15 km/h.
-  \item Customer arrivals follow Poisson processes with mean rate $\lambda = 0.8$ per 5 minutes ($\sim 9.6$ per hour).
-  \item Each station has 12 parking slots.
-  \item Vehicles are electric scooters with 0.5 kWh capacity and linear charging.
+  \item \textbf{NumPy}~\cite{harris2020array}: For high-performance vectorized state updates, numerical computations and stochastic generations.
+  \item \textbf{NetworkX}~\cite{SciPyProceedings_11}: For graph traversal, distance matrix computation, and managing network connectivity.
+  \item \textbf{Gymnasium}~\cite{towers2024gymnasium}: The environment adheres to the standard Gym interface, exposing \texttt{observation\_space} (state representation observed) and \texttt{action\_space} (possible actions to apply) to facilitate the integration of RL agents.
+  \item \textbf{StableBaselines3}~\cite{stable-baselines3}: Used for implementing advanced learning-based controllers, specifically the Soft Actor-Critic (SAC) agent used for continuous control experiments.
 \end{itemize}
 
-\subsection{Tools}
-The simulation is implemented in Python. \textbf{NumPy} is used for discrete-time system simulation. \textbf{Matplotlib/Seaborn} are used for KPI plots and time-series analysis. \textbf{NetworkX/OSMnx} are used to build and analyze the station network graph.
+\subsection{\label{sec:environ_spec}External Data}
+The simulation environment is grounded in realistic topological data. The road network layer is extracted using OSMnx~\cite{https://doi.org/10.1111/gean.70009} for the city of Porto, Portugal, from which a station graph is constructed. Each node is connected to every other node, with the edges retaining the shortest-path distance between them. This is done to abstract away the minute details of routing, which provide little meaning to the problem at hand, while preserving realistic inter-station distances. The travel time between stations is also included in the graph's edge informationl, computed using the distance and average speed of a shared electric scooter.
+
+% TODO: Add this somewhere:
+% assuming a constant average speed of 15 km/h, typical for shared electrical scooters in urban settings, and within the speed limits defined in Portuguese traffic legislation \cite{DL102B2020}.
+
+
+
+\subsection{Solution Design and Experimental Setup}
+
+With the specific instatiation of the simulation environment generated and defined,
+
 
 
 \section{Results and Discussion}
