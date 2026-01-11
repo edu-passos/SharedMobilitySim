@@ -254,16 +254,16 @@ demand:
   base_lambda_per_dt: 0.35
 energy:
   chargers_per_station:
-    - 6
-    - 6
-    - 6
-    - 6
-    - 6
-    - 6
-    - 6
-    - 6
-    - 6
-    - 6
+    - 12
+    - 12
+    - 12
+    - 12
+    - 12
+    - 12
+    - 12
+    - 12
+    - 12
+    - 12
   charge_rate_soc_per_hour:
     - 0.35
     - 0.35

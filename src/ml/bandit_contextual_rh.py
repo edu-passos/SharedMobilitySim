@@ -130,6 +130,118 @@ def context_from_obs(obs: dict[str, np.ndarray]) -> np.ndarray:
     )
 
 
+# -----------------------------
+# Context scaling (frozen z-score)
+# -----------------------------
+class ZScoreScaler:
+    """Frozen z-score scaler using Welford running moments during calibration."""
+
+    def __init__(self, d: int, *, eps: float = 1e-8, scale_mask: np.ndarray | None = None) -> None:
+        self.d = int(d)
+        self.eps = float(eps)
+        self.n = 0
+        self.mean = np.zeros(self.d, dtype=float)
+        self.M2 = np.zeros(self.d, dtype=float)
+
+        if scale_mask is None:
+            scale_mask = np.ones(self.d, dtype=bool)
+        self.scale_mask = np.asarray(scale_mask, dtype=bool).reshape(self.d)
+
+        self.frozen = False
+        self.std = np.ones(self.d, dtype=float)
+
+    def update(self, x: np.ndarray) -> None:
+        if self.frozen:
+            return
+        x = np.asarray(x, dtype=float).reshape(self.d)
+        self.n += 1
+        delta = x - self.mean
+        self.mean += delta / self.n
+        delta2 = x - self.mean
+        self.M2 += delta * delta2
+
+    def freeze(self) -> None:
+        if self.n < 2:
+            self.std = np.ones(self.d, dtype=float)
+        else:
+            var = self.M2 / (self.n - 1)
+            std = np.sqrt(np.maximum(var, 0.0))
+            self.std = np.maximum(std, self.eps)
+        self.frozen = True
+
+    def transform(self, x: np.ndarray) -> np.ndarray:
+        x = np.asarray(x, dtype=float).reshape(self.d)
+        z = x.copy()
+        if self.frozen:
+            z[self.scale_mask] = (z[self.scale_mask] - self.mean[self.scale_mask]) / self.std[self.scale_mask]
+        else:
+            z[self.scale_mask] = (z[self.scale_mask] - self.mean[self.scale_mask]) / np.maximum(
+                self.std[self.scale_mask], self.eps
+            )
+        return z
+
+
+def calibrate_context_scaler(
+    *,
+    cfg_path: str,
+    hours: int,
+    seed0: int,
+    scenario: str,
+    scenario_params: dict[str, Any],
+    reloc_planner: str | None,
+    charge_planner: str | None,
+    default_action: np.ndarray,
+    block_minutes: int,
+    calib_episodes: int,
+    d: int,
+) -> ZScoreScaler:
+    """Collect context vectors at block boundaries and fit a frozen z-score scaler."""
+
+    # Do not scale the bias term (last feature).
+    scale_mask = np.ones(d, dtype=bool)
+    scale_mask[-1] = False
+
+    scaler = ZScoreScaler(d=d, scale_mask=scale_mask)
+
+    for ep in range(int(calib_episodes)):
+        seed = int(seed0) + ep
+
+        env = PortoMicromobilityEnv(
+            cfg_path=cfg_path,
+            episode_hours=hours,
+            seed=seed,
+            reloc_name_override=reloc_planner,
+            charge_name_override=charge_planner,
+        )
+        obs = env.reset()
+        apply_scenario(env, scenario=scenario, seed=seed, **(scenario_params or {}))
+
+        dt_min = int(env.dt_min)
+        block_ticks = max(1, int(block_minutes // dt_min))
+        max_steps = int(env.max_steps)
+
+        a = np.asarray(default_action, dtype=float).reshape(4)
+        a = np.clip(a, 0.0, 1.0)
+
+        done = False
+        step0 = 0
+        while not done:
+            # Context at the start of the block
+            x_raw = context_from_obs(obs)
+            scaler.update(x_raw)
+
+            # Roll the block
+            for _ in range(block_ticks):
+                obs, _r, done, _info = env.step(a)
+                step0 += 1
+                if done or step0 >= max_steps:
+                    done = True
+                    break
+
+    scaler.freeze()
+    return scaler
+
+
 # LinUCB (disjoint model per arm)
 class LinUCB:
     """Disjoint LinUCB.
@@ -149,6 +261,9 @@ class LinUCB:
         self.rng = np.random.default_rng(seed)
 
         self.A = np.stack([np.eye(self.d) * self.reg for _ in range(self.n_arms)], axis=0)  # (K,d,d)
+        # Maintain inverse directly to avoid repeated inversions in select_arm
+        self.A_inv = np.stack([np.eye(self.d) / self.reg for _ in range(self.n_arms)], axis=0)  # (K,d,d)
+
         self.b = np.zeros((self.n_arms, self.d), dtype=float)  # (K,d)
         self.counts = np.zeros(self.n_arms, dtype=int)
 
@@ -161,10 +276,14 @@ class LinUCB:
 
         scores = np.empty(self.n_arms, dtype=float)
         for a in range(self.n_arms):
-            A_inv = np.linalg.inv(self.A[a])
+            A_inv = self.A_inv[a]
             theta = A_inv @ self.b[a]
             mean = float(theta @ x)
-            bonus = float(self.alpha * np.sqrt(x @ A_inv @ x))
+
+            quad = float(x @ A_inv @ x)
+            quad = max(quad, 0.0)  # numerical safety
+            bonus = float(self.alpha * np.sqrt(quad))
+
             scores[a] = mean + bonus
 
         m = float(np.max(scores))
@@ -176,14 +295,25 @@ class LinUCB:
         x = np.asarray(x, dtype=float).reshape(self.d)
         r = float(reward)
 
+        # Update A and b
         self.A[a] += np.outer(x, x)
         self.b[a] += r * x
+
+        # Sherman–Morrison update for inverse:
+        # (A + x x^T)^(-1) = A^{-1} - (A^{-1} x x^T A^{-1}) / (1 + x^T A^{-1} x)
+        A_inv = self.A_inv[a]
+        v = A_inv @ x
+        denom = 1.0 + float(x @ v)
+        if denom < 1e-12:
+            denom = 1e-12  # safety
+        self.A_inv[a] = A_inv - np.outer(v, v) / denom
+
         self.counts[a] += 1
 
 
 # Episode runner (receding-horizon contextual bandit)
 RELOC_BUDGET_KEY = "km_budget"
-CHARGE_BUDGET_KEY = "charge_budget_frac"
+CHARGE_BUDGET_KEY = "charge_budget_frac_override"
 
 
 def run_episode(
@@ -200,6 +330,7 @@ def run_episode(
     default_action: np.ndarray,
     block_minutes: int,
     warmup_blocks: int,
+    scaler: ZScoreScaler | None,
 ) -> dict[str, Any]:
     env = PortoMicromobilityEnv(
         cfg_path=cfg_path,
@@ -229,7 +360,8 @@ def run_episode(
         b_idx = int(step0 // block_ticks)
 
         # Context at the start of the block
-        x = context_from_obs(obs)
+        x_raw = context_from_obs(obs)
+        x = scaler.transform(x_raw) if scaler is not None else x_raw
 
         if b_idx < int(warmup_blocks):
             arm_idx = warmup_arm_idx
@@ -244,7 +376,12 @@ def run_episode(
 
         # Apply arm for this block (planner parameter overrides)
         env.base_reloc_params = dict(env.base_reloc_params)
-        env.base_reloc_params[RELOC_BUDGET_KEY] = km_budget
+
+        if str(env.reloc_name).lower() in ("budgeted", "relocation_budgeted", "plan_relocation_budgeted"):
+            env.base_reloc_params[RELOC_BUDGET_KEY] = km_budget
+        else:
+            # Ensure we don't leak budget params into non-budget planners
+            env.base_reloc_params.pop(RELOC_BUDGET_KEY, None)
 
         env.base_charge_params = dict(env.base_charge_params)
         env.base_charge_params[CHARGE_BUDGET_KEY] = c_frac
@@ -283,7 +420,8 @@ def run_episode(
                 "policy": policy,
                 "arm_idx": int(arm_idx),
                 "arm": {"km_budget": km_budget, "charge_budget_frac": c_frac},
-                "context": x.tolist(),
+                "context_raw": x_raw.tolist(),
+                "context_scaled": x.tolist(),
                 "block_reward_sum_env": float(block_reward),
                 "block_steps": int(block_steps),
                 "learn_reward_mean_env": float(mean_block_reward),
@@ -320,8 +458,8 @@ def main() -> None:
     p.add_argument("--seed0", type=int, default=42)
 
     # planners
-    p.add_argument("--reloc", default="budgeted")
-    p.add_argument("--charge", default="greedy")
+    p.add_argument("--reloc", default="greedy")
+    p.add_argument("--charge", default="slack")
 
     # scenario
     p.add_argument("--scenario", default="baseline", help="baseline | hotspot_od | hetero_lambda | event_heavy")
@@ -338,6 +476,10 @@ def main() -> None:
     # contextual bandit params
     p.add_argument("--linucb_alpha", type=float, default=1.0, help="Exploration strength.")
     p.add_argument("--linucb_reg", type=float, default=1.0, help="Ridge regularization.")
+
+    # context scaling
+    p.add_argument("--ctx_scale", choices=["none", "zscore"], default="zscore")
+    p.add_argument("--ctx_calib_episodes", type=int, default=5, help="Episodes used to fit frozen context scaler.")
 
     # constant action (keep neutral to avoid confounding)
     p.add_argument("--default_action", type=float, nargs=4, default=[0.0, 0.0, 0.0, 0.0])
@@ -358,6 +500,22 @@ def main() -> None:
 
     # Context dim is fixed by context_from_obs: 16
     d = 16
+
+    scaler: ZScoreScaler | None = None
+    if args.ctx_scale == "zscore":
+        scaler = calibrate_context_scaler(
+            cfg_path=str(args.config),
+            hours=int(args.hours),
+            seed0=int(args.seed0),
+            scenario=scenario,
+            scenario_params=scenario_params,
+            reloc_planner=str(args.reloc) if args.reloc else None,
+            charge_planner=str(args.charge) if args.charge else None,
+            default_action=np.asarray(args.default_action, dtype=float),
+            block_minutes=int(args.block_minutes),
+            calib_episodes=int(args.ctx_calib_episodes),
+            d=d,
+        )
 
     bandit = LinUCB(
         n_arms=len(arms),
@@ -383,6 +541,7 @@ def main() -> None:
             default_action=np.asarray(args.default_action, dtype=float),
             block_minutes=int(args.block_minutes),
             warmup_blocks=int(args.warmup_blocks),
+            scaler=scaler,
         )
         episodes_out.append(ep_out)
 
@@ -403,6 +562,8 @@ def main() -> None:
         "warmup_blocks": int(args.warmup_blocks),
         "linucb_alpha": float(args.linucb_alpha),
         "linucb_reg": float(args.linucb_reg),
+        "ctx_scale": str(args.ctx_scale),
+        "ctx_calib_episodes": int(args.ctx_calib_episodes),
         "n_arms": len(arms),
         "arms": arms,
         "bandit_arm_pulls": bandit.counts.tolist(),

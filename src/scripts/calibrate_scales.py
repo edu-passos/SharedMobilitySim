@@ -84,7 +84,7 @@ def run_one_episode(
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--config", default="configs/network_porto10.yaml")
+    p.add_argument("--config", default="configs/network_lisbon20_s700.yaml")
     p.add_argument("--hours", type=int, default=24, help="Episode length (hours) for calibration.")
     p.add_argument("--seeds", type=int, default=30, help="Number of independent seeds to average over.")
     p.add_argument("--seed0", type=int, default=42, help="First seed (we will use seed0..seed0+seeds-1).")

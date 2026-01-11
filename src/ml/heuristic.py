@@ -1,4 +1,5 @@
-"""eval_heuristic_agent.py.
+"""
+heuristic.py.
 
 Evaluate a real-time (tick-by-tick) adaptive heuristic agent on PortoMicromobilityEnv,
 using the same normalized objective decomposition as eval_policies.py:
@@ -17,6 +18,7 @@ This script:
 
 import argparse
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +26,12 @@ import numpy as np
 
 from envs.porto_env import PortoMicromobilityEnv
 from sim.kpis import compute_episode_kpis
+
+
+# Force planners here (keeps this heuristic evaluation independent of budgeted/slack planners)
+# Rationale: only the bandit experiments should use budgeted/slack planner knobs.
+RELOC_PLANNER_OVERRIDE = "greedy"
+CHARGE_PLANNER_OVERRIDE = "greedy"
 
 
 # Scenario application
@@ -78,6 +86,7 @@ def apply_scenario(
     raise ValueError(f"Unknown scenario '{scenario}'. Use: baseline, hotspot_od, hetero_lambda, event_heavy.")
 
 
+@dataclass
 class HeuristicAgent:
     """Tick-level heuristic with feedback control.
 
@@ -86,18 +95,18 @@ class HeuristicAgent:
     - charges based on SoC tail (p10) rather than mean
     """
 
-    # EWMA state
-    ewma_reloc_km: float = 0.0
-    ewma_queue_rate: float = 0.0
-    initialized: bool = False
-
     # EWMA smoothing (higher -> faster response)
     alpha: float = 0.15
 
     # Relocation targets (interpreted in km/tick, relative)
-    # You should tune these after 1-2 quick sweeps.
-    reloc_km_target_base: float = 4.0  # baseline "sweet spot" per tick scale proxy
-    reloc_km_target_event: float = 20.0  # allow more during events/hotspots
+    # Tune these after 1-2 quick sweeps if desired.
+    reloc_km_target_base: float = 4.0
+    reloc_km_target_event: float = 20.0
+
+    # EWMA state
+    ewma_reloc_km: float = 0.0
+    ewma_queue_rate: float = 0.0
+    initialized: bool = False
 
     def reset(self) -> None:
         self.ewma_reloc_km = 0.0
@@ -110,11 +119,13 @@ class HeuristicAgent:
         waiting = np.asarray(obs["waiting"], dtype=float)  # (N,)
         tod = np.asarray(obs["time_of_day"], dtype=float)  # (2,)
 
-        # optional extra signals
-        event_max = float(obs.get("event_stats", np.array([1.0, 1.0]))[1])
-        last_kpi = np.asarray(obs.get("last_kpi", np.zeros(5)), dtype=float)
-        last_reloc_km = float(last_kpi[0])
-        last_queue_rate = float(last_kpi[4])
+        # optional extra signals (safe indexing)
+        event_stats = np.asarray(obs.get("event_stats", np.array([1.0, 1.0])), dtype=float).reshape(-1)
+        event_max = float(event_stats[1]) if event_stats.size >= 2 else 1.0
+
+        last_kpi = np.asarray(obs.get("last_kpi", np.zeros(5)), dtype=float).reshape(-1)
+        last_reloc_km = float(last_kpi[0]) if last_kpi.size >= 1 else 0.0
+        last_queue_rate = float(last_kpi[4]) if last_kpi.size >= 5 else 0.0
 
         # Update EWMAs
         if not self.initialized:
@@ -147,13 +158,12 @@ class HeuristicAgent:
         high_wait_frac = float(np.mean(waiting > 5))
         very_high_wait_frac = float(np.mean(waiting > 10))
 
-        soc_mean = float(np.mean(soc))
         soc_p10 = float(np.percentile(soc, 10))
 
         # Pressure based on queue_rate EWMA (faster) + local waiting tail
         # Scale queue_rate into [0,1] using a soft normalization; tune denominator if needed.
         qrate_scale = float(np.clip(self.ewma_queue_rate / 3.0, 0.0, 1.0))
-        pressure = np.clip(0.45 * qrate_scale + 0.35 * high_wait_frac + 0.20 * empty_frac, 0.0, 1.0)
+        pressure = float(np.clip(0.45 * qrate_scale + 0.35 * high_wait_frac + 0.20 * empty_frac, 0.0, 1.0))
 
         # -----------------------------
         # Relocation throttle
@@ -198,7 +208,7 @@ class HeuristicAgent:
 
         # a3 (charging) - depend on SoC tail + pressure; boost at night
         soc_lack_tail = float(np.clip(0.35 - soc_p10, 0.0, 0.35) / 0.35)  # soc_p10 below 0.35 -> higher
-        drive = 0.55 * soc_lack_tail + 0.45 * np.clip(0.5 * pressure + 0.5 * very_high_wait_frac, 0.0, 1.0)
+        drive = 0.55 * soc_lack_tail + 0.45 * float(np.clip(0.5 * pressure + 0.5 * very_high_wait_frac, 0.0, 1.0))
         if is_night:
             drive = max(drive, 0.75)
         a3 = float(np.clip(drive, 0.0, 1.0))
@@ -215,10 +225,15 @@ def run_one_episode(
     scenario_params: dict[str, Any],
     agent: HeuristicAgent,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    env = PortoMicromobilityEnv(cfg_path=cfg_path, episode_hours=hours, seed=seed)
+    env = PortoMicromobilityEnv(
+        cfg_path=cfg_path,
+        episode_hours=hours,
+        seed=seed,
+        reloc_name_override=RELOC_PLANNER_OVERRIDE,
+        charge_name_override=CHARGE_PLANNER_OVERRIDE,
+    )
     obs = env.reset()
-    if hasattr(agent, "reset"):
-        agent.reset()
+    agent.reset()
 
     apply_scenario(env, scenario=scenario, seed=seed, **(scenario_params or {}))
 
@@ -226,7 +241,7 @@ def run_one_episode(
     total_reward = 0.0
     while not done:
         action = agent.act(obs)
-        obs, reward, done, info = env.step(action)
+        obs, reward, done, _info = env.step(action)
         total_reward += float(reward)
 
     kpis = compute_episode_kpis(env, total_reward=total_reward)
@@ -314,6 +329,7 @@ def main() -> None:
         "scenario": scenario,
         "scenario_params": scenario_params,
         "agent": "heuristic_tick_level",
+        "planners_forced": {"reloc": RELOC_PLANNER_OVERRIDE, "charge": CHARGE_PLANNER_OVERRIDE},
         "report_keys": report_keys,
         "summary": summary,
         "episodes": rows,
