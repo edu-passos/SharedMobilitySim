@@ -2,14 +2,13 @@ import argparse
 import math
 from pathlib import Path
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from matplotlib.animation import FuncAnimation
-from matplotlib.patches import FancyArrowPatch
-import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
-
+from matplotlib.patches import FancyArrowPatch
 
 from envs.porto_env import PortoMicromobilityEnv
 
@@ -248,15 +247,15 @@ def main() -> None:
     cmap = mcolors.ListedColormap(colors)
     norm = mcolors.BoundaryNorm(bounds, cmap.N, clip=True)
     sc = ax.scatter(
-    x,
-    y,
-    s=sizes0,
-    c=soc0,
-    cmap=cmap,
-    norm=norm,
-    edgecolors="k",
-    linewidths=0.8,
-    zorder=3,
+        x,
+        y,
+        s=sizes0,
+        c=soc0,
+        cmap=cmap,
+        norm=norm,
+        edgecolors="k",
+        linewidths=0.8,
+        zorder=3,
     )
 
     sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
@@ -267,13 +266,27 @@ def main() -> None:
     cbar.ax.set_yticklabels(["0%", "15%", "30%", "60%", "100%"])
 
     legend_items = [
-        Line2D([0], [0], marker="o", color="w", label="SoC < 15% (not rentable)", markerfacecolor=colors[0], markeredgecolor="k", markersize=8),
-        Line2D([0], [0], marker="o", color="w", label="15–30% (low)",          markerfacecolor=colors[1], markeredgecolor="k", markersize=8),
-        Line2D([0], [0], marker="o", color="w", label="30–60% (ok)",           markerfacecolor=colors[2], markeredgecolor="k", markersize=8),
-        Line2D([0], [0], marker="o", color="w", label=">60% (good)",           markerfacecolor=colors[3], markeredgecolor="k", markersize=8),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            label="SoC < 15% (not rentable)",
+            markerfacecolor=colors[0],
+            markeredgecolor="k",
+            markersize=8,
+        ),
+        Line2D(
+            [0], [0], marker="o", color="w", label="15–30% (low)", markerfacecolor=colors[1], markeredgecolor="k", markersize=8
+        ),
+        Line2D(
+            [0], [0], marker="o", color="w", label="30–60% (ok)", markerfacecolor=colors[2], markeredgecolor="k", markersize=8
+        ),
+        Line2D(
+            [0], [0], marker="o", color="w", label=">60% (good)", markerfacecolor=colors[3], markeredgecolor="k", markersize=8
+        ),
     ]
     ax.legend(handles=legend_items, loc="upper left", fontsize=8, frameon=True)
-
 
     kpi_text = ax.text(
         0.01,

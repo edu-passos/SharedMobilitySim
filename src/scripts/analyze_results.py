@@ -1,5 +1,4 @@
-"""
-analyze_paper_results.py
+"""analyze_paper_results.py
 
 Scan out/paper/**.json and aggregate results across:
 - scripts.eval_policy.py (summaries per policy)
@@ -21,11 +20,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -36,7 +34,6 @@ except Exception:
     pd = None  # type: ignore
 
 import matplotlib.pyplot as plt
-
 
 # -----------------------------
 # Config
@@ -67,7 +64,7 @@ def _isfinite(x: Any) -> bool:
         return False
 
 
-def _mean_std(values: List[float]) -> Tuple[float, float]:
+def _mean_std(values: list[float]) -> tuple[float, float]:
     v = np.array([float(x) for x in values if _isfinite(x)], dtype=float)
     if v.size == 0:
         return float("nan"), float("nan")
@@ -76,7 +73,7 @@ def _mean_std(values: List[float]) -> Tuple[float, float]:
     return float(np.mean(v)), float(np.std(v, ddof=1))
 
 
-def _safe_get(d: Dict[str, Any], key: str, default: Any = None) -> Any:
+def _safe_get(d: dict[str, Any], key: str, default: Any = None) -> Any:
     return d.get(key, default) if isinstance(d, dict) else default
 
 
@@ -123,7 +120,7 @@ def parse_path_meta(root: Path, file_path: Path) -> PathMeta:
 # -----------------------------
 # Schema detection + parsing
 # -----------------------------
-def detect_schema(obj: Dict[str, Any]) -> str:
+def detect_schema(obj: dict[str, Any]) -> str:
     if "summaries" in obj and "policies" in obj:
         return "eval_policy"
     if obj.get("agent") == "heuristic_tick_level" or ("agent" in obj and "heuristic" in str(obj.get("agent", ""))):
@@ -145,7 +142,7 @@ def detect_schema(obj: Dict[str, Any]) -> str:
     return "unknown"
 
 
-def extract_common_fields(obj: Dict[str, Any]) -> Dict[str, Any]:
+def extract_common_fields(obj: dict[str, Any]) -> dict[str, Any]:
     return {
         "config": _safe_get(obj, "config", ""),
         "hours": _safe_get(obj, "hours", float("nan")),
@@ -156,8 +153,8 @@ def extract_common_fields(obj: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def parse_eval_policy(obj: Dict[str, Any], pm: PathMeta, metrics: List[str]) -> List[Dict[str, Any]]:
-    rows: List[Dict[str, Any]] = []
+def parse_eval_policy(obj: dict[str, Any], pm: PathMeta, metrics: list[str]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
     common = extract_common_fields(obj)
 
     summaries = obj.get("summaries", {})
@@ -192,7 +189,9 @@ def parse_eval_policy(obj: Dict[str, Any], pm: PathMeta, metrics: List[str]) -> 
     return rows
 
 
-def parse_agent_summary(obj: Dict[str, Any], pm: PathMeta, metrics: List[str], family: str, method_name: str) -> List[Dict[str, Any]]:
+def parse_agent_summary(
+    obj: dict[str, Any], pm: PathMeta, metrics: list[str], family: str, method_name: str
+) -> list[dict[str, Any]]:
     common = extract_common_fields(obj)
     summ = obj.get("summary", {})
     row = {
@@ -219,16 +218,15 @@ def parse_agent_summary(obj: Dict[str, Any], pm: PathMeta, metrics: List[str], f
 
 
 def parse_bandit_from_episodes(
-    obj: Dict[str, Any],
+    obj: dict[str, Any],
     pm: PathMeta,
-    metrics: List[str],
+    metrics: list[str],
     family: str,
     method_name: str,
-) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    """
-    Returns:
-      - rows (one row, aggregated over episodes)
-      - extra_bandit_info (for arm plots)
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Returns:
+    - rows (one row, aggregated over episodes)
+    - extra_bandit_info (for arm plots)
     """
     common = {}
     episodes = obj.get("episodes", [])
@@ -247,12 +245,14 @@ def parse_bandit_from_episodes(
             "seed0": summ.get("seed0", float("nan")),
             "seeds": summ.get("seeds", summ.get("episodes", summ.get("testing_seeds", float("nan")))),
             "scenario": (summ.get("scenario") if isinstance(summ, dict) else "") or obj.get("scenario", "") or scenario_fallback,
-            "scenario_params": (summ.get("scenario_params") if isinstance(summ, dict) else {}) or obj.get("scenario_params", {}) or scenario_params_fallback,
+            "scenario_params": (summ.get("scenario_params") if isinstance(summ, dict) else {})
+            or obj.get("scenario_params", {})
+            or scenario_params_fallback,
         }
     else:
         common = extract_common_fields(obj)
 
-    vals: Dict[str, List[float]] = {m: [] for m in metrics}
+    vals: dict[str, list[float]] = {m: [] for m in metrics}
 
     # Episodes schema differs:
     # - linucb_rh: episode_kpis nested in each episode
@@ -293,7 +293,7 @@ def parse_bandit_from_episodes(
         row[f"{m}_std"] = sd
 
     # Extra info for arm plots
-    extra: Dict[str, Any] = {"arm_counts": None, "arms": None}
+    extra: dict[str, Any] = {"arm_counts": None, "arms": None}
     if isinstance(summ, dict):
         if "bandit_arm_pulls" in summ:
             extra["arm_counts"] = summ.get("bandit_arm_pulls")
@@ -316,7 +316,7 @@ def parse_bandit_from_episodes(
     return [row], extra
 
 
-def parse_file(file_path: Path, root: Path, metrics: List[str]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+def parse_file(file_path: Path, root: Path, metrics: list[str]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     pm = parse_path_meta(root, file_path)
     try:
         obj = json.loads(file_path.read_text(encoding="utf-8"))
@@ -366,10 +366,7 @@ def save_jrun_table(df, out_png: Path, title: str) -> None:
     if sub.empty:
         return
 
-    agg = (
-        sub.groupby(["method", "scenario"], as_index=False)["J_run_mean"]
-        .mean()
-    )
+    agg = sub.groupby(["method", "scenario"], as_index=False)["J_run_mean"].mean()
 
     methods = sorted(agg["method"].unique())
     scenarios = sorted(agg["scenario"].unique())
@@ -465,8 +462,7 @@ def save_stacked_objective(df, out_png: Path, title: str) -> None:
     plt.close(fig)
 
 
-
-def save_bandit_arm_pulls(arm_counts: List[int], arms: Any, out_png: Path, title: str) -> None:
+def save_bandit_arm_pulls(arm_counts: list[int], arms: Any, out_png: Path, title: str) -> None:
     if not arm_counts:
         return
     counts = np.array(arm_counts, dtype=float)
@@ -501,13 +497,12 @@ def save_bandit_arm_pulls(arm_counts: List[int], arms: Any, out_png: Path, title
 # -----------------------------
 def compute_robustness(df):
     base = df[df["scenario"] == "baseline"].copy()
-    base = base[["phase","network","hours","method_family","method","J_run_mean"]].rename(
+    base = base[["phase", "network", "hours", "method_family", "method", "J_run_mean"]].rename(
         columns={"J_run_mean": "J_run_baseline"}
     )
-    merged = df.merge(base, on=["phase","network","hours","method_family","method"], how="left")
+    merged = df.merge(base, on=["phase", "network", "hours", "method_family", "method"], how="left")
     merged["dJ_vs_baseline"] = merged["J_run_mean"].astype(float) - merged["J_run_baseline"].astype(float)
     return merged
-
 
 
 # -----------------------------
@@ -534,8 +529,8 @@ def main() -> None:
     if phases_filter:
         json_files = [f for f in json_files if parse_path_meta(root, f).phase in phases_filter]
 
-    all_rows: List[Dict[str, Any]] = []
-    bandit_extras: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
+    all_rows: list[dict[str, Any]] = []
+    bandit_extras: list[tuple[dict[str, Any], dict[str, Any]]] = []
 
     for fp in json_files:
         rows, extra = parse_file(fp, root, metrics)

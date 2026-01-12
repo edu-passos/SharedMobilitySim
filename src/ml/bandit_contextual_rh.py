@@ -196,7 +196,6 @@ def calibrate_context_scaler(
     d: int,
 ) -> ZScoreScaler:
     """Collect context vectors at block boundaries and fit a frozen z-score scaler."""
-
     # Do not scale the bias term (last feature).
     scale_mask = np.ones(d, dtype=bool)
     scale_mask[-1] = False
@@ -304,8 +303,7 @@ class LinUCB:
         A_inv = self.A_inv[a]
         v = A_inv @ x
         denom = 1.0 + float(x @ v)
-        if denom < 1e-12:
-            denom = 1e-12  # safety
+        denom = max(denom, 1e-12)  # safety
         self.A_inv[a] = A_inv - np.outer(v, v) / denom
 
         self.counts[a] += 1

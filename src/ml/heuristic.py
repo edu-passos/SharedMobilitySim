@@ -1,5 +1,4 @@
-"""
-heuristic.py.
+"""heuristic.py.
 
 Evaluate a real-time (tick-by-tick) adaptive heuristic agent on PortoMicromobilityEnv,
 using the same normalized objective decomposition as eval_policies.py:
@@ -26,7 +25,6 @@ import numpy as np
 
 from envs.porto_env import PortoMicromobilityEnv
 from sim.kpis import compute_episode_kpis
-
 
 # Force planners here (keeps this heuristic evaluation independent of budgeted/slack planners)
 # Rationale: only the bandit experiments should use budgeted/slack planner knobs.
