@@ -76,23 +76,11 @@ Section \ref{sec:related_work} reviews related work; Section \ref{sec:materials_
 
 
 
-\section{\label{sec:related_work}Related Work}
+\section{\label{sec:related_work}Related work}
+Shared mobility fleet management is typically studied via optimization and simulation for rebalancing under stochastic demand, and via learning-based control for adaptive repositioning. Mijnster~\cite{mijnster2022sharedmobility_review} surveys simulation--optimization approaches for matching supply and demand, Qin et al.~\cite{qin2022rl_ridesharing_survey} review RL methods for mobility-on-demand control under non-stationarity and long-horizon feedback, and Villa-Zapata et al.~\cite{villazapata2024equity_rebalancing} highlight multi-objective formulations (e.g., efficiency and equity) that motivate explicit trade-off analysis.
 
-\textit{
-  \textbf{TODOs:}
-  \begin{itemize}
-    \item Review of existing literature.
-    \item Relevant concepts and studies.
-    \item Summarize background and related work to highlight gaps addressed by the project.
-    \item Discussion and critical analysis.
-  \end{itemize}
-}
 
-The problem falls within the field of Urban Mobility and, more specifically, the subfield of Shared Micromobility and Fleet Management. It addresses how cities can efficiently manage and balance fleets of shared electric vehicles to meet fluctuating demand patterns throughout the day. As a result, and similarly to many of the modelling projects that seek to study the real world, this issue lies at the intersection of several disciplines.
 
-From the perspective of transportation science, the problem concerns the modeling of human movement patterns and travel demand within urban environments. It involves understanding how people choose modes of transport, how their choices change with time of day, weather, or location, and how these behaviors influence the spatial distribution of shared vehicles.
-
-In the area of optimization and operations research, the challenge translates into a set of complex decision problems. These include vehicle rebalancing (determining how and when to move vehicles from low-demand to high-demand areas), routing and scheduling of redistribution trucks, and the design of user incentives to encourage self-balancing behavior. Such problems are often formulated as variants of the Vehicle Routing Problem (VRP), capacitated network flow models, or stochastic optimization problems. Furthermore, the possibility of incorporating machine learning brings a predictive and adaptive layer to the system.
 
 
 
@@ -245,7 +233,7 @@ The system evaluates four distinct agents, each representing a different approac
 
 \paragraph{Heuristic Agent}
 
-A rule-based reactive controller that computes actions from observation features without learning. It maintains exponentially weighted moving averages (EWMA) of recent relocation distance and queue rate to detect operational trends. Actions are derived through explicit logic and change every simulation tick: relocation thresholds ($a_0, a_1$) adapt to queue pressure and capacity imbalance, the target fill ratio ($a_2$) responds to peak-hour detection and system throttling, and charging intensity ($a_3$) scales with low-SoC tail percentiles. This agent represents white-box decision-making, through manually crafted rules based on domain knowledge, providing interpretability and absolute transparency, but lacking adaptability. As such, it serves as a benchmark to evaluate the benefits of learning-based approaches.
+A rule-based reactive controller that computes actions from observation features without learning. It maintains exponentially weighted moving averages (EWMA) of recent relocation distance and queue rate to detect operational trends. Actions are derived through explicit logic and change every simulation tick: relocation thresholds ($a_0, a_1$) adapt to queue pressure and capacity imbalance, the target fill ratio ($a_2$) responds to peak-hour detection and system throttling, and charging intensity ($a_3$) scales with low-SoC tail percentiles. This agent represents white-box decision-making, through manually crafted rules based on domain knowledge, providing interpretability and absolute transparency.
 
 \paragraph{Episode-Level Bandit (UCB1)}
 
@@ -294,7 +282,7 @@ The simulation experiments were conducted using several environment configuratio
       Battery, $B$ & 0.50 & 0.50 & 0.50 & 0.50 \\
       Energy cost, $c_{energy}$ & 0.20 & 0.20 & 0.20 & 0.20 \\
       Base demand, $\lambda$ & 0.35 & 0.35 & 0.35 & 0.35 \\
-      Base seed (graph/scenario gen.) & 42 & 42 & 42 & 42 \\
+      Base seed & 42 & 42 & 42 & 42 \\
       \hline
       \multicolumn{5}{l}{\textit{Scoring weights}} \\
       $w_\text{unavail}$ & 5.0 & 5.0 & 5.0 & 5.0 \\
@@ -310,11 +298,7 @@ The simulation experiments were conducted using several environment configuratio
       \hline
     \end{tabular}
     \begin{tablenotes}\footnotesize
-      \item Minimum distance between any pair of stations:
-      \item[a] 500m
-      \item[b] 600m
-      \item[c] 900m
-      \item[d] 700m
+      \item Minimum distance between any pair of stations: [a] 500m, [b] 600m, [c] 900m, [d] 700m
     \end{tablenotes}
   \end{threeparttable}
 \end{table}
@@ -502,7 +486,9 @@ Future work should prioritize (i) operational realism and (ii) robustness under 
 On the control side, contextual bandits should incorporate stronger feature normalization and richer context (including graph-aware features) to reduce long-horizon variance and improve regime discrimination. For SAC, improvements include longer training budgets, curriculum training from easier to harder scenarios, and state representations that better capture network structure. Finally, the simulator can be extended with additional operational levers such as dynamic pricing, user incentives, and proactive repositioning, enabling new research directions in end-to-end micromobility optimization under uncertainty.
 
 
+{\footnotesize
 \bibliographystyle{IEEEtran}
 \bibliography{references}
+}
 
 \end{document}
