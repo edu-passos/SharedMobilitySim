@@ -21,8 +21,8 @@ import numpy as np
 from gymnasium import spaces
 from stable_baselines3 import SAC
 
-from src.envs.porto_env import PortoMicromobilityEnv
-from src.sim.kpis import compute_episode_kpis
+from envs.porto_env import PortoMicromobilityEnv
+from sim.kpis import compute_episode_kpis
 
 
 def apply_scenario(

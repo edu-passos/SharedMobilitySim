@@ -30,11 +30,11 @@ from typing import Any
 import numpy as np
 import yaml
 
-from src.control.registry import REGISTRY as POLICY_REGISTRY
-from src.sim.core import Sim, SimConfig
-from src.sim.demand import effective_lambda
-from src.sim.events import events
-from src.sim.weather_mc import make_default_weather_mc as weather_mc
+from control.registry import REGISTRY as POLICY_REGISTRY
+from sim.core import Sim, SimConfig
+from sim.demand import effective_lambda
+from sim.events import events
+from sim.weather_mc import make_default_weather_mc as weather_mc
 
 
 @dataclass

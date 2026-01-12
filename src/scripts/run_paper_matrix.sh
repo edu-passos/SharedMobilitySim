@@ -9,27 +9,27 @@ if [[ "$PHASE" == "phaseA" ]]; then
   EPISODES=10
   OUTBASE="out/paper/phaseA_24h"
   SAC_TRAIN_HOURS=24
-  SAC_TRAIN_TIMESTEPS=300000   # adjust if you want
+  SAC_TRAIN_TIMESTEPS=300000   
 else
   HOURS=168
   SEEDS=30
   EPISODES=30
   OUTBASE="out/paper/phaseB_168h"
   SAC_TRAIN_HOURS=168
-  SAC_TRAIN_TIMESTEPS=800000   # adjust if you want
+  SAC_TRAIN_TIMESTEPS=800000  
 fi
 
 SEED0=42
 SCENARIOS=("baseline" "hotspot_od" "hetero_lambda" "event_heavy")
 
-# Networks (edit as you like)
+# Networks
 declare -A NETS
 NETS["porto10"]="configs/network_porto10.yaml"
 NETS["porto20_s600"]="configs/network_porto20_s600.yaml"
 NETS["lisbon20_s700"]="configs/network_lisbon20_s700.yaml"
 NETS["porto20_s900"]="configs/network_porto20_s900.yaml"
 
-# Bandit settings (paper defaults)
+# Bandit settings
 BM=30
 ALPHA=1.0
 KM_BUDGETS=(0 10 20 40)
@@ -38,9 +38,7 @@ CHARGE_FRACS=(0.0 0.5 1.0)
 mkdir -p "$OUTBASE"
 mkdir -p "$OUTBASE/models"
 
-# ----------------------------
 # SAC: Train once, eval everywhere
-# ----------------------------
 SAC_TRAIN_NET="${SAC_TRAIN_NET:-porto20_s600}"
 SAC_TRAIN_CFG="${NETS[$SAC_TRAIN_NET]}"
 
@@ -56,24 +54,21 @@ echo
 
 if [[ ! -f "$SAC_MODEL_PATH" ]]; then
   echo "== Training SAC (baseline) =="
-  # NOTE: Adjust these flags ONLY if your ml.sac CLI differs.
   python -m ml.sac \
     --config "$SAC_TRAIN_CFG" \
     --hours "$SAC_TRAIN_HOURS" \
     --scenario baseline \
     --seed0 "$SEED0" \
-    --train \
-    --total_timesteps "$SAC_TRAIN_TIMESTEPS" \
-    --save "$SAC_MODEL_PATH"
+    --training_episodes "$EPISODES" \
+    --save_model \
+    --out "$SAC_MODEL_PATH"
   echo
 else
   echo "== SAC model already exists; skipping training =="
   echo
 fi
 
-# ----------------------------
 # Main evaluation loops
-# ----------------------------
 for NET in "${!NETS[@]}"; do
   CFG="${NETS[$NET]}"
 
@@ -126,15 +121,13 @@ for NET in "${!NETS[@]}"; do
       --out "$OUTBASE/$NET/bandit_ucb1/${SCEN}_c2.json"
 
     # 6) SAC (evaluate using trained model)
-    # NOTE: Adjust these flags ONLY if your ml.sac CLI differs.
     python -m ml.sac \
       --config "$CFG" \
       --hours "$HOURS" \
       --scenario "$SCEN" \
       --seed0 "$SEED0" \
-      --seeds "$SEEDS" \
-      --eval \
-      --load "$SAC_MODEL_PATH" \
+      --testing_seeds "$SEEDS" \
+      --load_model "$SAC_MODEL_PATH" \
       --out "$OUTBASE/$NET/sac/$SCEN.json"
 
     echo
