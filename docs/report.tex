@@ -51,32 +51,30 @@ Modelling, reinforcement learning, scooter fleet management, simulation
 \end{IEEEkeywords}
 
 \section{Introduction}
-Shared electric micro-mobility systems operated by private companies have become common in urban environments. This trend is driven by the daily congestion, environmental pressures, and the limited flexibility of traditional public transportation. Electric scooters offer a compact alternative for short-distance travel, and their deployment does not require major infrastructure investments. However, the management of these fleets presents the challenge of keeping scooters continuously available, which leads to costs related to scooter redistribution and battery charging, both of which are strongly impacted by spatial and temporal demand imbalance.
+\paragraph{Context and motivation.}
+Managing a shared e-scooter fleet is an operational control problem in which an operator must keep vehicles available across a city despite stochastic demand, spatial imbalance, battery depletion, charging delays, and finite relocation/charging resources. In practice, diurnal cycles, weather, and localized events can quickly drain stock at high-demand stations while other stations saturate, leading to unmet demand and persistent queues. Because these effects compound over time, nominal performance under ``typical'' conditions can mask fragile strategies that fail under scenario shift.
 
-In more detail, the variance in scooter demand is influenced by commute patterns, weather conditions, and special events. As a result, in certain situations, some stations may become saturated while others are empty, which causes a reduced scooter availability and poor service quality. This imbalance is further complicated by battery constraints and charging delays, which limit vehicle usability and introduce additional operational dependencies. Since fleet size, charging capacity, and relocation resources are finite, operators must constantly decide when and where to relocate and recharge the scooters. On the one hand, an excessive intervention will increase operational cost, but on the other hand, an insufficient intervention leads to unmet demand, longer waiting times, and revenue loss. Ultimately, the problem consists of selecting redistribution and charging actions over time that minimize operational cost while maintaining acceptable service quality under uncertainty and resource constraints.
+\paragraph{Modeling perspective.}
+The proposed simulator is primarily \emph{prescriptive}, supporting decisions on relocation and charging; it is also \emph{descriptive} through explicit state tracking (availability, queue backlog, SoC), \emph{predictive} in the sense that demand intensity evolves as a stochastic time-dependent process influenced by weather and events, and \emph{speculative} via ``what-if'' scenario stress tests. It is \emph{normative} only in the operational sense that policies are compared using an explicit objective that encodes a value judgement about service quality versus operational cost.
 
-Indeed, an ever-changing city is poorly suited to simple static planning, as manually crafted rules do not account for demand heterogeneity and stochastic external influences. Consequently, there is a strong need for systematic evaluation tools that allow the comparison of management strategies and the analysis of trade-offs between availability, waiting queues, and operational cost. Simulation provides a controlled and flexible environment to study these interactions, avoiding the risks and expenses of real-world experimentation.
+\paragraph{Problem statement.}
+Over a discrete horizon of $T$ time steps, the system state $\mathcal{S}_t$ summarizes fleet counts, battery SoC, and queue backlog across stations. At each step, a control policy selects an action $\mathbf{a}_t \in [0,1]^4$ that parameterizes relocation and charging planners, producing executable interventions that drive the transition $\mathcal{S}_t \rightarrow \mathcal{S}_{t+1}$ under stochastic demand and exogenous factors. The technical objective is to minimize the time-averaged normalized cost
+\begin{equation}
+J_{\mathrm{run}}=\frac{1}{T}\sum_{t=0}^{T-1}\left(
+w_{U}\frac{U_t}{U_0}+w_{R}\frac{R_t}{R_0}+w_{C}\frac{C_t}{C_0}+w_{Q}\frac{Q_t}{Q_0}
+\right),
+\end{equation}
+which trades off service quality (unavailability and queues) against operational effort (relocation distance and charging cost).
 
-The aim of this project is to build a realistic simulation of an urban shared electric scooter system for the evaluation of daily fleet management strategies. The primary goal is to minimize operating costs while maximizing service quantity and quality. To achieve this, the simulation models user demand, vehicle travel, battery depletion, charging processes, and operator-driven relocation actions, while incorporating stochastic exogenous factors such as weather and events. Multiple decision-making approaches are evaluated, including baseline policies, interpretable heuristic and bandit-based agents, and reinforcement learning methods such as Soft Actor-Critic (SAC).
+\paragraph{Aim, goals, research questions, and hypotheses.}
+The aim of this project is to provide a realistic and reproducible simulation-based testbed for scooter fleet management and to compare control strategies under uncertainty and scenario shift. Concretely, we (i) build a discrete-time simulator grounded in real city graphs and operational constraints, (ii) implement multiple controller families (static planners, an interpretable heuristic, bandits, and deep RL), and (iii) evaluate performance under both short (24h) and long (168h) horizons using robustness deltas and objective decomposition.
+We address: (RQ1) whether tuned static planners remain competitive under nominal demand; (RQ2) which controllers are most robust under persistent heterogeneity and event shocks; (RQ3) how long-horizon evaluation changes ranking and failure modes; and (RQ4) the interpretability--robustness trade-off.
+We hypothesize that (H1) SAC improves performance under sustained heterogeneity by adapting intervention intensity, (H2) queue accumulation dominates long-horizon failures, (H3) contextual bandits can adapt but may be high-variance on long horizons, and (H4) a well-designed heuristic can match top performance in benign regimes with greater transparency.
 
-The central research questions address how different management policies perform under heterogeneous and time-dependent demand, how battery and charging constraints affect system efficiency, and what trade-offs arise between service quality and operational cost. The underlying hypothesis is that learning-based agents achieve superior performance by adapting to complex demand patterns, while interpretable approaches provide greater transparency but may degrade under demand heterogeneity.
+\paragraph{Paper structure.}
+Section~II reviews related work; Section~III describes the simulator, planners, and agents; Section~IV presents the experimental protocol and results; and Section~V concludes with limitations and future work.
 
-This report first describes the system model and simulation framework, followed by the decision-making agents and policies. The evaluation methodology and performance metrics are then presented, along with a comparative analysis of results across multiple scenarios. The report concludes with a discussion of key findings, limitations, and directions for future work.
 
-\textit{
-  \textbf{TODOs:}
-  \begin{itemize}
-    \item Context
-    \item Problem statement. Clearly define the research question or technical challenge with a precise problem description and formal representations
-    \item Motivation (to solve the problem) / significance
-    \item Aim and goals
-    \item Aim: the main expected outcome of this research project (the big picture!)
-    \item Goals: specific objectives to be accomplished
-    \item Research questions
-    \item Hypotheses
-    \item Document/paper structure
-  \end{itemize}
-}
 
 \section{Related Work}
 
@@ -115,6 +113,7 @@ The simulation environment is characterized by a set of controllable exogenous p
   \item $\mathcal{D} \in \mathbb{R}^{N \times N}$: Distance, where $d_{ij}$ represents the distance (km) between station $i$ and $j$.
   \item $K \in \mathbb{N}^N$: Vector of station chargers at each node.
   \item $\rho \in \mathbb{R}^N$: Charging rate vector, where $\rho_i$ denotes the SoC gain per hour at station $i$.
+  % TODO: Are we sure this is total battery per vehicle? What does that mean?
   \item $B$: Total battery capacity per vehicle (kWh).
   \item $c_{energy}$: Unit cost of energy (€/kWh).
   \item $s_{min}$: Minimum SoC threshold required for a scooter to be eligible for rental. Always set to 0.15 (15\%).
@@ -343,7 +342,7 @@ Four scenarios were designed to evaluate agent robustness under varying demand c
 
 All methods are evaluated in the agent--planner--simulator loop described in Section~\ref{sec:agent_env}. Two horizons are considered: a short-horizon setting of 24 hours (Phase A) and a long-horizon setting of 168 hours (Phase B), both using a 5-minute time step. For each \texttt{(horizon, network, scenario, method)} configuration, multiple independent random seeds are executed (10--30, depending on runtime) to estimate mean performance and variability under stochastic demand, weather, and event realizations.
 
-Each run produces a structured JSON file under \texttt{out/paper/<phase>/<network>/<method\_dir>/}, with one JSON file per scenario. Baseline planners are evaluated via \texttt{scripts.eval\_policy.py}; learning-based controllers and adaptive heuristics (Heuristic, UCB1, LinUCB, SAC) store both a method-level summary and, when applicable, traces (e.g., bandit arm selections). Aggregation is performed by \texttt{analyze\_paper\_results.py}, which scans \texttt{out/paper/**.json}, normalizes run schemas, and exports two primary artifacts: \texttt{master\_runs.csv} (objective and KPIs with mean$\pm$std over seeds) and \texttt{robustness.csv} (scenario deltas relative to Baseline for each \texttt{(phase, network, method)}).
+Each run produces a structured JSON file under \texttt{out/paper/<phase>/<network>/<method\_dir>/}, with one JSON file per scenario. Baseline planners are evaluated via \texttt{scripts.eval\_policy.py}; learning-based controllers and adaptive heuristics (Heuristic, UCB1, LinUCB, SAC) store both a method-level summary and, when applicable, traces (e.g., bandit arm selections). Aggregation is performed by \texttt{analyze\_results.py}, which scans \texttt{out/paper/**.json}, normalizes run schemas, and exports two primary artifacts: \texttt{master\_runs.csv} (objective and KPIs with mean$\pm$std over seeds) and \texttt{robustness.csv} (scenario deltas relative to Baseline for each \texttt{(phase, network, method)}).
 
 Unless explicitly stated otherwise, the results in this section report only Phase A (24h) and Phase B (168h) evaluation outputs. Intermediate training/debug phases are excluded to avoid confounding evaluation statistics.
 
