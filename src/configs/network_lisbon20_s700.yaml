@@ -950,7 +950,7 @@ score:
     C0_charge_cost_eur: 0.01
     Q0_queue_total: 10.0
   eps: 1.0e-06
-seed: 44
+seed: 42
 meta:
   city: Lisbon, Portugal (synthetic)
   generator: synthetic_min_spacing

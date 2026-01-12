@@ -227,7 +227,7 @@ def main() -> None:
 
     # Planners to use (these should exist in your registry)
     p.add_argument("--reloc", default="budgeted", help="Relocation planner name (e.g., budgeted, greedy, noop).")
-    p.add_argument("--charge", default="greedy", help="Charging planner name (e.g., greedy, slack, noop).")
+    p.add_argument("--charge", default="slack", help="Charging planner name (e.g., greedy, slack, noop).")
 
     # Default action (kept constant; arms do the budget control)
     p.add_argument(

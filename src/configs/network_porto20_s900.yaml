@@ -950,7 +950,7 @@ score:
     C0_charge_cost_eur: 0.027335
     Q0_queue_total: 234.699074
   eps: 1.0e-06
-seed: 43
+seed: 42
 meta:
   city: Porto, Portugal (synthetic)
   generator: synthetic_min_spacing
