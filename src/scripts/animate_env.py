@@ -13,9 +13,7 @@ from matplotlib.patches import FancyArrowPatch
 from envs.porto_env import PortoMicromobilityEnv
 
 
-# -----------------------------
-# Scenario application (same logic you already use)
-# -----------------------------
+# Scenario application
 def apply_scenario(
     env: PortoMicromobilityEnv,
     *,
@@ -131,7 +129,7 @@ def main() -> None:
 
     args = ap.parse_args()
 
-    # --- load YAML for station coords/labels ---
+    # load YAML for station coords/labels
     with Path(args.config).open(encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
@@ -142,7 +140,7 @@ def main() -> None:
     x, y = _normalize_xy(lon, lat)
     N = len(lat)
 
-    # --- run one episode via the ENV, collect per-tick obs + info ---
+    #run one episode via the ENV, collect per-tick obs + info
     env = PortoMicromobilityEnv(
         cfg_path=str(args.config),
         episode_hours=int(args.hours),
@@ -219,7 +217,7 @@ def main() -> None:
     reloc_km_cum = np.cumsum(reloc_km_series)
     charge_eur_cum = np.cumsum(charge_eur_series)
 
-    # --- plot setup ---
+    # plot setup
     fig = plt.figure(figsize=(7.8, 7.8))
     ax = fig.add_subplot(111)
     ax.set_xticks([])

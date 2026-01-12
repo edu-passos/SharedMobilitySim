@@ -33,9 +33,7 @@ except Exception:
 
 import matplotlib.pyplot as plt
 
-# -----------------------------
 # Config
-# -----------------------------
 DEFAULT_METRICS = [
     "J_run",
     "J_avail_run",
@@ -52,9 +50,7 @@ DEFAULT_METRICS = [
 ]
 
 
-# -----------------------------
 # Small utilities
-# -----------------------------
 def _isfinite(x: Any) -> bool:
     try:
         return bool(np.isfinite(float(x)))
@@ -93,9 +89,7 @@ def _try_float(x: Any) -> float:
         return float("nan")
 
 
-# -----------------------------
 # Path parsing
-# -----------------------------
 @dataclass
 class PathMeta:
     phase: str
@@ -115,9 +109,7 @@ def parse_path_meta(root: Path, file_path: Path) -> PathMeta:
     return PathMeta(phase=phase, network=network, method_dir=method_dir, filename=file_path.name)
 
 
-# -----------------------------
 # Schema detection + parsing
-# -----------------------------
 def detect_schema(obj: dict[str, Any]) -> str:
     if "summaries" in obj and "policies" in obj:
         return "eval_policy"
@@ -234,7 +226,7 @@ def parse_bandit_from_episodes(
     if isinstance(episodes, list) and len(episodes) and isinstance(episodes[0], dict):
         scenario_fallback = episodes[0].get("scenario", "") or ""
         scenario_params_fallback = episodes[0].get("scenario_params", {}) or {}
-    # bandit scripts often store config/hours/scenario in summary
+    # bandit scripts store config/hours/scenario in summary
     summ = obj.get("summary", {})
     if isinstance(summ, dict):
         common = {
@@ -352,9 +344,7 @@ def parse_file(file_path: Path, root: Path, metrics: list[str]) -> tuple[list[di
     return [], {}
 
 
-# -----------------------------
 # Plotting
-# -----------------------------
 def save_jrun_table(df, out_png: Path, title: str) -> None:
     # Aggregate duplicates: mean over any repeated (method, scenario)
     sub = df.copy()
@@ -490,9 +480,7 @@ def save_bandit_arm_pulls(arm_counts: list[int], arms: Any, out_png: Path, title
     plt.close(fig)
 
 
-# -----------------------------
 # Robustness table
-# -----------------------------
 def compute_robustness(df):
     base = df[df["scenario"] == "baseline"].copy()
     base = base[["phase", "network", "hours", "method_family", "method", "J_run_mean"]].rename(
@@ -503,9 +491,7 @@ def compute_robustness(df):
     return merged
 
 
-# -----------------------------
 # Main
-# -----------------------------
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--root", default="out/paper", help="Root folder containing paper runs.")

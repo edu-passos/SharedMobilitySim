@@ -1,7 +1,6 @@
 """heuristic.py.
 
-Evaluate a real-time (tick-by-tick) adaptive heuristic agent on PortoMicromobilityEnv,
-using the same normalized objective decomposition as eval_policies.py:
+Evaluate a real-time (tick-by-tick) adaptive heuristic agent on PortoMicromobilityEnv:
 
     J_t = wA * (unavailability / A0)
         + wR * (reloc_km / R0)
@@ -27,7 +26,6 @@ from src.envs.porto_env import PortoMicromobilityEnv
 from src.sim.kpis import compute_episode_kpis
 
 # Force planners here (keeps this heuristic evaluation independent of budgeted/slack planners)
-# Rationale: only the bandit experiments should use budgeted/slack planner knobs.
 RELOC_PLANNER_OVERRIDE = "greedy"
 CHARGE_PLANNER_OVERRIDE = "greedy"
 
@@ -97,7 +95,6 @@ class HeuristicAgent:
     alpha: float = 0.15
 
     # Relocation targets (interpreted in km/tick, relative)
-    # Tune these after 1-2 quick sweeps if desired.
     reloc_km_target_base: float = 4.0
     reloc_km_target_event: float = 20.0
 
@@ -146,9 +143,7 @@ class HeuristicAgent:
         is_evening_peak = 17 <= hour <= 20
         is_night = (0 <= hour <= 5) or (hour >= 23)
 
-        # -----------------------------
         # Core state summaries
-        # -----------------------------
         empty_frac = float(np.mean(fill < 0.1))
         full_frac = float(np.mean(fill > 0.9))
 
@@ -163,9 +158,7 @@ class HeuristicAgent:
         qrate_scale = float(np.clip(self.ewma_queue_rate / 3.0, 0.0, 1.0))
         pressure = float(np.clip(0.45 * qrate_scale + 0.35 * high_wait_frac + 0.20 * empty_frac, 0.0, 1.0))
 
-        # -----------------------------
         # Relocation throttle
-        # -----------------------------
         # If event_max is high, allow more relocation.
         # event_max ~ 1.0 normally, >1 during events.
         event_strength = float(np.clip((event_max - 1.0) / 1.0, 0.0, 1.0))  # map ~[1..2] -> [0..1]
@@ -339,7 +332,7 @@ def main() -> None:
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(out, f, indent=2)
 
-    # compact console report (matching your eval_policies style)
+    # compact console report
     s = summary
     print("\n=== Heuristic policy summary (mean ± std over seeds) ===")
     print(
