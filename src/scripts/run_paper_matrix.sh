@@ -8,11 +8,15 @@ if [[ "$PHASE" == "phaseA" ]]; then
   SEEDS=10
   EPISODES=10
   OUTBASE="out/paper/phaseA_24h"
+  SAC_TRAIN_HOURS=24
+  SAC_TRAIN_TIMESTEPS=300000   # adjust if you want
 else
   HOURS=168
   SEEDS=30
   EPISODES=30
   OUTBASE="out/paper/phaseB_168h"
+  SAC_TRAIN_HOURS=168
+  SAC_TRAIN_TIMESTEPS=800000   # adjust if you want
 fi
 
 SEED0=42
@@ -32,7 +36,44 @@ KM_BUDGETS=(0 10 20 40)
 CHARGE_FRACS=(0.0 0.5 1.0)
 
 mkdir -p "$OUTBASE"
+mkdir -p "$OUTBASE/models"
 
+# ----------------------------
+# SAC: Train once, eval everywhere
+# ----------------------------
+SAC_TRAIN_NET="${SAC_TRAIN_NET:-porto20_s600}"
+SAC_TRAIN_CFG="${NETS[$SAC_TRAIN_NET]}"
+
+# name includes phase + train net + hours + seed0 so reruns do not overwrite accidentally
+SAC_MODEL_PATH="$OUTBASE/models/sac_${SAC_TRAIN_NET}_${SAC_TRAIN_HOURS}h_seed${SEED0}.zip"
+
+echo "== SAC: Train-once per phase, then evaluate all nets/scenarios =="
+echo "PHASE:        $PHASE"
+echo "TRAIN_NET:    $SAC_TRAIN_NET"
+echo "TRAIN_CONFIG: $SAC_TRAIN_CFG"
+echo "MODEL_OUT:    $SAC_MODEL_PATH"
+echo
+
+if [[ ! -f "$SAC_MODEL_PATH" ]]; then
+  echo "== Training SAC (baseline) =="
+  # NOTE: Adjust these flags ONLY if your ml.sac CLI differs.
+  python -m ml.sac \
+    --config "$SAC_TRAIN_CFG" \
+    --hours "$SAC_TRAIN_HOURS" \
+    --scenario baseline \
+    --seed0 "$SEED0" \
+    --train \
+    --total_timesteps "$SAC_TRAIN_TIMESTEPS" \
+    --save "$SAC_MODEL_PATH"
+  echo
+else
+  echo "== SAC model already exists; skipping training =="
+  echo
+fi
+
+# ----------------------------
+# Main evaluation loops
+# ----------------------------
 for NET in "${!NETS[@]}"; do
   CFG="${NETS[$NET]}"
 
@@ -84,8 +125,21 @@ for NET in "${!NETS[@]}"; do
       --default_action 0.5 0.5 0.5 0.5 \
       --out "$OUTBASE/$NET/bandit_ucb1/${SCEN}_c2.json"
 
+    # 6) SAC (evaluate using trained model)
+    # NOTE: Adjust these flags ONLY if your ml.sac CLI differs.
+    python -m ml.sac \
+      --config "$CFG" \
+      --hours "$HOURS" \
+      --scenario "$SCEN" \
+      --seed0 "$SEED0" \
+      --seeds "$SEEDS" \
+      --eval \
+      --load "$SAC_MODEL_PATH" \
+      --out "$OUTBASE/$NET/sac/$SCEN.json"
+
     echo
   done
 done
 
 echo "Done. Results under: $OUTBASE"
+echo "SAC model: $SAC_MODEL_PATH"
