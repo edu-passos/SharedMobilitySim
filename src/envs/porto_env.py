@@ -2,7 +2,7 @@
 
 You need these two methods:
 
-    env = PortoMicromobilityEnv("src/configs/network_porto10.yaml")
+    env = PortoMicromobilityEnv("configs/network_porto10.yaml")
     obs = env.reset()
     obs, reward, done, info = env.step(action)
 

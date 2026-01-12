@@ -99,7 +99,7 @@ def _aggregate_reloc_flows(plans: list[list[tuple[int, int, int]]], N: int) -> n
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config", default="src/configs/network_porto10.yaml")
+    ap.add_argument("--config", default="configs/network_porto10.yaml")
     ap.add_argument("--hours", type=int, default=168)
     ap.add_argument("--seed", type=int, default=42)
 
@@ -140,7 +140,7 @@ def main() -> None:
     x, y = _normalize_xy(lon, lat)
     N = len(lat)
 
-    #run one episode via the ENV, collect per-tick obs + info
+    # run one episode via the ENV, collect per-tick obs + info
     env = PortoMicromobilityEnv(
         cfg_path=str(args.config),
         episode_hours=int(args.hours),

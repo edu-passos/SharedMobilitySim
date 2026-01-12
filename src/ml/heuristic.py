@@ -22,8 +22,8 @@ from typing import Any
 
 import numpy as np
 
-from src.envs.porto_env import PortoMicromobilityEnv
-from src.sim.kpis import compute_episode_kpis
+from envs.porto_env import PortoMicromobilityEnv
+from sim.kpis import compute_episode_kpis
 
 # Force planners here (keeps this heuristic evaluation independent of budgeted/slack planners)
 RELOC_PLANNER_OVERRIDE = "greedy"
@@ -255,7 +255,7 @@ def _aggregate(rows: list[dict[str, Any]], keys: list[str]) -> dict[str, Any]:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--config", default="src/configs/network_porto10.yaml")
+    p.add_argument("--config", default="configs/network_porto10.yaml")
     p.add_argument("--hours", type=int, default=24)
     p.add_argument("--seed0", type=int, default=42)
     p.add_argument("--seeds", type=int, default=30)

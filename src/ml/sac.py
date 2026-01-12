@@ -86,7 +86,7 @@ class PortoGymWrapper(gym.Env):
         seed: int,
         scenario: str = "baseline",
         scenario_params: dict[str, Any] | None = None,
-        action_repeat: int = 1, 
+        action_repeat: int = 1,
     ) -> None:
         super().__init__()
         self.cfg_path = cfg_path
@@ -212,7 +212,7 @@ def _convert_ndarray_to_list(obj: object) -> object:
 # Main
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--config", default="src/configs/network_porto10.yaml")
+    p.add_argument("--config", default="configs/network_porto10.yaml")
     p.add_argument("--hours", type=int, default=24, help="Episode length in hours")
     p.add_argument("--seed0", type=int, default=42, help="Base random seed")
     p.add_argument("--training_episodes", type=int, default=365, help="Number of training episodes (approximate)")
