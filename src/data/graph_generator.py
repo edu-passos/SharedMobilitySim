@@ -20,7 +20,7 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--out", type=Path, default=Path("../configs/network_porto10.yaml"))
+    parser.add_argument("--out", type=Path, default=Path("src/configs/network_porto10.yaml"))
     parser.add_argument("--n", type=int, default=10)
     parser.add_argument("--city", type=str, default="Porto, Portugal")
     parser.add_argument("--speed-kmh", type=float, default=15.0)

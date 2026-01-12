@@ -16,8 +16,6 @@ Outputs (default to out/analysis):
     - bandit_arm_pulls_<phase>_<network>_<scenario>_<method>.png (if data exists)
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import re

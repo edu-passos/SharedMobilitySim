@@ -34,13 +34,12 @@ from typing import Any
 
 import numpy as np
 
-from envs.porto_env import PortoMicromobilityEnv
-from sim.kpis import compute_episode_kpis
+from src.envs.porto_env import PortoMicromobilityEnv
+from src.sim.kpis import compute_episode_kpis
 
 
-# Bandit: UCB1
 class UCB1Bandit:
-    """UCB1 over discrete arms with scalar rewards (maximize)."""
+    """UCB1 Multi-Armed Bandit over discrete arms with scalar rewards (maximize)."""
 
     def __init__(self, n_arms: int, *, c: float = 2.0, seed: int = 0) -> None:
         if n_arms <= 0:
@@ -220,7 +219,7 @@ def run_one_episode_with_arm(
 # Main
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--config", default="configs/network_porto10.yaml")
+    p.add_argument("--config", default="src/configs/network_porto10.yaml")
     p.add_argument("--hours", type=int, default=24)
     p.add_argument("--episodes", type=int, default=100)
     p.add_argument("--seed0", type=int, default=42)

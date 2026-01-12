@@ -23,8 +23,8 @@ from typing import Any
 
 import numpy as np
 
-from envs.porto_env import PortoMicromobilityEnv
-from sim.kpis import compute_episode_kpis
+from src.envs.porto_env import PortoMicromobilityEnv
+from src.sim.kpis import compute_episode_kpis
 
 # Force planners here (keeps this heuristic evaluation independent of budgeted/slack planners)
 # Rationale: only the bandit experiments should use budgeted/slack planner knobs.
@@ -167,7 +167,7 @@ class HeuristicAgent:
         # Relocation throttle
         # -----------------------------
         # If event_max is high, allow more relocation.
-        # event_max ≈ 1.0 normally, >1 during events.
+        # event_max ~ 1.0 normally, >1 during events.
         event_strength = float(np.clip((event_max - 1.0) / 1.0, 0.0, 1.0))  # map ~[1..2] -> [0..1]
         reloc_target = (1 - event_strength) * self.reloc_km_target_base + event_strength * self.reloc_km_target_event
 
@@ -262,7 +262,7 @@ def _aggregate(rows: list[dict[str, Any]], keys: list[str]) -> dict[str, Any]:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--config", default="configs/network_porto10.yaml")
+    p.add_argument("--config", default="src/configs/network_porto10.yaml")
     p.add_argument("--hours", type=int, default=24)
     p.add_argument("--seed0", type=int, default=42)
     p.add_argument("--seeds", type=int, default=30)

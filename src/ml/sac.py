@@ -21,8 +21,8 @@ import numpy as np
 from gymnasium import spaces
 from stable_baselines3 import SAC
 
-from envs.porto_env import PortoMicromobilityEnv
-from sim.kpis import compute_episode_kpis
+from src.envs.porto_env import PortoMicromobilityEnv
+from src.sim.kpis import compute_episode_kpis
 
 
 def apply_scenario(
@@ -214,7 +214,7 @@ def _convert_ndarray_to_list(obj: object) -> object:
 # -----------------------------
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--config", default="configs/network_porto10.yaml")
+    p.add_argument("--config", default="src/configs/network_porto10.yaml")
     p.add_argument("--hours", type=int, default=24, help="Episode length in hours")
     p.add_argument("--seed0", type=int, default=42, help="Base random seed")
     p.add_argument("--training_episodes", type=int, default=365, help="Number of training episodes (approximate)")

@@ -101,7 +101,7 @@ def _aggregate_reloc_flows(plans: list[list[tuple[int, int, int]]], N: int) -> n
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config", default="configs/network_porto10.yaml")
+    ap.add_argument("--config", default="src/configs/network_porto10.yaml")
     ap.add_argument("--hours", type=int, default=168)
     ap.add_argument("--seed", type=int, default=42)
 
@@ -132,7 +132,7 @@ def main() -> None:
     args = ap.parse_args()
 
     # --- load YAML for station coords/labels ---
-    with open(args.config, encoding="utf-8") as f:
+    with Path(args.config).open(encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
     lat = np.array(cfg["network"]["lat"], dtype=float)
@@ -277,13 +277,34 @@ def main() -> None:
             markersize=8,
         ),
         Line2D(
-            [0], [0], marker="o", color="w", label="15–30% (low)", markerfacecolor=colors[1], markeredgecolor="k", markersize=8
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            label="15-30% (low)",
+            markerfacecolor=colors[1],
+            markeredgecolor="k",
+            markersize=8,
         ),
         Line2D(
-            [0], [0], marker="o", color="w", label="30–60% (ok)", markerfacecolor=colors[2], markeredgecolor="k", markersize=8
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            label="30-60% (ok)",
+            markerfacecolor=colors[2],
+            markeredgecolor="k",
+            markersize=8,
         ),
         Line2D(
-            [0], [0], marker="o", color="w", label=">60% (good)", markerfacecolor=colors[3], markeredgecolor="k", markersize=8
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            label=">60% (good)",
+            markerfacecolor=colors[3],
+            markeredgecolor="k",
+            markersize=8,
         ),
     ]
     ax.legend(handles=legend_items, loc="upper left", fontsize=8, frameon=True)
@@ -300,7 +321,7 @@ def main() -> None:
     # arrows are artists we update each frame
     arrow_artists: list[FancyArrowPatch] = []
 
-    def _clear_arrows():
+    def _clear_arrows() -> None:
         nonlocal arrow_artists
         for a in arrow_artists:
             try:
@@ -309,7 +330,7 @@ def main() -> None:
                 pass
         arrow_artists = []
 
-    def _draw_arrows(flow: np.ndarray):
+    def _draw_arrows(flow: np.ndarray) -> None:
         """Draw top-k flows as arrows."""
         nonlocal arrow_artists
         _clear_arrows()
@@ -360,7 +381,7 @@ def main() -> None:
             ax.add_patch(arr)
             arrow_artists.append(arr)
 
-    def update(fi: int):
+    def update(fi: int) -> tuple:
         t = frames[fi]
         day, hour = _tick_to_dayhour(t, dt_min)
 
@@ -387,7 +408,13 @@ def main() -> None:
 
         return (sc, kpi_text, *arrow_artists)
 
-    ani = FuncAnimation(fig, update, frames=len(frames), interval=1000 // int(args.fps), blit=False)
+    ani = FuncAnimation(
+        fig,
+        update,
+        frames=len(frames),
+        interval=1000 // int(args.fps),
+        blit=False,
+    )
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

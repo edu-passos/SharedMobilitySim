@@ -1,4 +1,5 @@
 import argparse
+from collections.abc import Iterator
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -12,15 +13,14 @@ def _col(df: pd.DataFrame, name: str) -> bool:
     return name in df.columns
 
 
-def _scenario_iter(df: pd.DataFrame):
+def _scenario_iter(df: pd.DataFrame) -> Iterator[str]:
     # keep known order first, then any extras
     scen = [s for s in SCENARIOS_ORDER if s in set(df["scenario"].astype(str))]
     extra = sorted(set(df["scenario"].astype(str)) - set(scen))
-    for s in scen + extra:
-        yield s
+    yield from scen + extra
 
 
-def _save(fig, out_path: Path):
+def _save(fig, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=200, bbox_inches="tight")
     plt.close(fig)
@@ -33,7 +33,7 @@ def barh_metric(
     *,
     out_dir: Path,
     top_k: int,
-):
+) -> None:
     mean_col = f"{metric}_mean"
     std_col = f"{metric}_std"
 
@@ -72,14 +72,14 @@ def barh_metric(
 
     ax.set_title(f"{scenario} — {metric} (mean ± std)")
     ax.set_xlabel(metric)
-    ax.grid(True, axis="x", linestyle="--", alpha=0.4)
+    ax.grid(visible=True, axis="x", linestyle="--", alpha=0.4)
 
     out_path = out_dir / f"{scenario}__barh__{metric}.png"
     _save(fig, out_path)
     print(f"[ok] {out_path}")
 
 
-def scatter_reloc_vs_unmet(df: pd.DataFrame, scenario: str, *, out_dir: Path, top_k: int):
+def scatter_reloc_vs_unmet(df: pd.DataFrame, scenario: str, *, out_dir: Path, top_k: int) -> None:
     x_col = "relocation_km_total_mean"
     y_col = "unmet_rate_mean"
 
@@ -113,14 +113,14 @@ def scatter_reloc_vs_unmet(df: pd.DataFrame, scenario: str, *, out_dir: Path, to
     ax.set_title(f"{scenario} — relocation vs unmet (top {top_k})")
     ax.set_xlabel("relocation_km_total_mean")
     ax.set_ylabel("unmet_rate_mean")
-    ax.grid(True, linestyle="--", alpha=0.4)
+    ax.grid(visible=True, linestyle="--", alpha=0.4)
 
     out_path = out_dir / f"{scenario}__scatter__reloc_vs_unmet.png"
     _save(fig, out_path)
     print(f"[ok] {out_path}")
 
 
-def stacked_objective_decomp(df: pd.DataFrame, scenario: str, *, out_dir: Path, top_k: int):
+def stacked_objective_decomp(df: pd.DataFrame, scenario: str, *, out_dir: Path, top_k: int) -> None:
     # Requires these columns from your summary CSV
     parts = ["J_avail_run", "J_reloc_run", "J_charge_run", "J_queue_run"]
     mean_cols = [f"{p}_mean" for p in parts]
@@ -129,7 +129,7 @@ def stacked_objective_decomp(df: pd.DataFrame, scenario: str, *, out_dir: Path, 
         return
 
     sub = df[df["scenario"].astype(str) == scenario].copy()
-    for c in mean_cols + ["J_run_mean"]:
+    for c in [*mean_cols, "J_run_mean"]:
         if _col(sub, c):
             sub[c] = pd.to_numeric(sub[c], errors="coerce")
 
@@ -158,7 +158,7 @@ def stacked_objective_decomp(df: pd.DataFrame, scenario: str, *, out_dir: Path, 
 
     ax.set_title(f"{scenario} — objective decomposition (per-tick mean contributions)")
     ax.set_xlabel("J components (mean)")
-    ax.grid(True, axis="x", linestyle="--", alpha=0.4)
+    ax.grid(visible=True, axis="x", linestyle="--", alpha=0.4)
     ax.legend(loc="lower right")
 
     out_path = out_dir / f"{scenario}__stacked__objective_decomp.png"
@@ -166,7 +166,7 @@ def stacked_objective_decomp(df: pd.DataFrame, scenario: str, *, out_dir: Path, 
     print(f"[ok] {out_path}")
 
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--summary_csv", required=True, help="Path to all_results_summary.csv")
     ap.add_argument("--out_dir", default="out/eval/plots", help="Output directory for PNGs")
