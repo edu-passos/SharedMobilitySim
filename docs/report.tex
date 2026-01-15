@@ -58,12 +58,8 @@ Managing a shared e-scooter fleet is an operational control problem in which an 
 The proposed simulator is primarily \emph{prescriptive}, supporting decisions on relocation and charging, it is also \emph{descriptive} through explicit state tracking (availability, queue backlog, SoC), \emph{predictive} in the sense that demand intensity evolves as a stochastic time-dependent process influenced by weather and events, and \emph{speculative} via ``what-if'' scenario stress tests. It is \emph{normative} only in the operational sense that policies are compared using an explicit objective that encodes a value judgement about service quality versus operational cost.
 
 \paragraph{Problem statement}
-Over a discrete horizon of $T$ time steps, the system state $\mathcal{S}_t$ summarizes fleet counts, battery SoC, and queue backlog across stations. At each step, a control policy selects an action $\mathbf{a}_t \in [0,1]^4$ that parameterizes relocation and charging planners, producing executable interventions that drive the transition $\mathcal{S}_t \rightarrow \mathcal{S}_{t+1}$ under stochastic demand and exogenous factors. The technical objective is to minimize the time-averaged normalized cost
-\begin{equation}
-J_{\mathrm{run}}=\frac{1}{T}\sum_{t=0}^{T-1}\left(
-w_{U}\frac{U_t}{U_0}+w_{R}\frac{R_t}{R_0}+w_{C}\frac{C_t}{C_0}+w_{Q}\frac{Q_t}{Q_0}
-\right),
-\end{equation}
+Over a discrete horizon of $T$ time steps, the system state $\mathcal{S}_t$ summarizes fleet counts, battery SoC, and queue backlog across stations. At each step, a control policy selects an action $\mathbf{a}_t \in [0,1]^4$ that parameterizes relocation and charging planners, producing executable interventions that drive the transition $\mathcal{S}_t \rightarrow \mathcal{S}_{t+1}$ under stochastic demand and exogenous factors. The technical objective is to minimize the cost $J_{\mathrm{run}}$ (Eq.\eqref{eq:Jrun}), computed as the average of the per-step objective $J_t$ (Eq.\eqref{eq:Jt}).
+
 which trades off service quality (unavailability and queues) against operational effort (relocation distance and charging cost).
 
 \paragraph{Aim, goals, research questions, and hypotheses}
