@@ -86,7 +86,7 @@ class PortoGymWrapper(gym.Env):
         seed: int,
         scenario: str = "baseline",
         scenario_params: dict[str, Any] | None = None,
-        action_repeat: int = 1,  # NEW: how many env steps per agent action
+        action_repeat: int = 1,
     ) -> None:
         super().__init__()
         self.cfg_path = cfg_path
@@ -209,9 +209,7 @@ def _convert_ndarray_to_list(obj: object) -> object:
     return obj
 
 
-# -----------------------------
 # Main
-# -----------------------------
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--config", default="configs/network_porto10.yaml")
@@ -309,7 +307,7 @@ def main() -> None:
         rows.append(row)
         print(f"  seed={seed}: J_run={kpis.get('J_run', float('nan')):.3f}")
 
-    # Report keys (matching other agents)
+    # Report keys
     report_keys = [
         "J_run",
         "total_reward",

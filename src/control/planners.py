@@ -177,7 +177,7 @@ def plan_relocation_budgeted(
             if len(plan) >= max_moves:
                 return plan
 
-            # target-balanced move amount (same as your greedy)
+            # target-balanced move amount (same as greedy)
             surplus = x[j] - target * C[j]
             gap = target * C[i] - x[i]
             k = int(max(0, np.floor(min(surplus, gap))))

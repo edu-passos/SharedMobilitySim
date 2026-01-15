@@ -2,21 +2,18 @@ import argparse
 import math
 from pathlib import Path
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 from matplotlib.animation import FuncAnimation
-from matplotlib.patches import FancyArrowPatch
-import matplotlib.colors as mcolors
 from matplotlib.lines import Line2D
-
+from matplotlib.patches import FancyArrowPatch
 
 from envs.porto_env import PortoMicromobilityEnv
 
 
-# -----------------------------
-# Scenario application (same logic you already use)
-# -----------------------------
+# Scenario application
 def apply_scenario(
     env: PortoMicromobilityEnv,
     *,
@@ -132,8 +129,8 @@ def main() -> None:
 
     args = ap.parse_args()
 
-    # --- load YAML for station coords/labels ---
-    with open(args.config, encoding="utf-8") as f:
+    # load YAML for station coords/labels
+    with Path(args.config).open(encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
     lat = np.array(cfg["network"]["lat"], dtype=float)
@@ -143,7 +140,7 @@ def main() -> None:
     x, y = _normalize_xy(lon, lat)
     N = len(lat)
 
-    # --- run one episode via the ENV, collect per-tick obs + info ---
+    # run one episode via the ENV, collect per-tick obs + info
     env = PortoMicromobilityEnv(
         cfg_path=str(args.config),
         episode_hours=int(args.hours),
@@ -220,7 +217,7 @@ def main() -> None:
     reloc_km_cum = np.cumsum(reloc_km_series)
     charge_eur_cum = np.cumsum(charge_eur_series)
 
-    # --- plot setup ---
+    # plot setup
     fig = plt.figure(figsize=(7.8, 7.8))
     ax = fig.add_subplot(111)
     ax.set_xticks([])
@@ -248,15 +245,15 @@ def main() -> None:
     cmap = mcolors.ListedColormap(colors)
     norm = mcolors.BoundaryNorm(bounds, cmap.N, clip=True)
     sc = ax.scatter(
-    x,
-    y,
-    s=sizes0,
-    c=soc0,
-    cmap=cmap,
-    norm=norm,
-    edgecolors="k",
-    linewidths=0.8,
-    zorder=3,
+        x,
+        y,
+        s=sizes0,
+        c=soc0,
+        cmap=cmap,
+        norm=norm,
+        edgecolors="k",
+        linewidths=0.8,
+        zorder=3,
     )
 
     sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
@@ -267,13 +264,48 @@ def main() -> None:
     cbar.ax.set_yticklabels(["0%", "15%", "30%", "60%", "100%"])
 
     legend_items = [
-        Line2D([0], [0], marker="o", color="w", label="SoC < 15% (not rentable)", markerfacecolor=colors[0], markeredgecolor="k", markersize=8),
-        Line2D([0], [0], marker="o", color="w", label="15–30% (low)",          markerfacecolor=colors[1], markeredgecolor="k", markersize=8),
-        Line2D([0], [0], marker="o", color="w", label="30–60% (ok)",           markerfacecolor=colors[2], markeredgecolor="k", markersize=8),
-        Line2D([0], [0], marker="o", color="w", label=">60% (good)",           markerfacecolor=colors[3], markeredgecolor="k", markersize=8),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            label="SoC < 15% (not rentable)",
+            markerfacecolor=colors[0],
+            markeredgecolor="k",
+            markersize=8,
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            label="15-30% (low)",
+            markerfacecolor=colors[1],
+            markeredgecolor="k",
+            markersize=8,
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            label="30-60% (ok)",
+            markerfacecolor=colors[2],
+            markeredgecolor="k",
+            markersize=8,
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            label=">60% (good)",
+            markerfacecolor=colors[3],
+            markeredgecolor="k",
+            markersize=8,
+        ),
     ]
     ax.legend(handles=legend_items, loc="upper left", fontsize=8, frameon=True)
-
 
     kpi_text = ax.text(
         0.01,
@@ -287,7 +319,7 @@ def main() -> None:
     # arrows are artists we update each frame
     arrow_artists: list[FancyArrowPatch] = []
 
-    def _clear_arrows():
+    def _clear_arrows() -> None:
         nonlocal arrow_artists
         for a in arrow_artists:
             try:
@@ -296,7 +328,7 @@ def main() -> None:
                 pass
         arrow_artists = []
 
-    def _draw_arrows(flow: np.ndarray):
+    def _draw_arrows(flow: np.ndarray) -> None:
         """Draw top-k flows as arrows."""
         nonlocal arrow_artists
         _clear_arrows()
@@ -347,7 +379,7 @@ def main() -> None:
             ax.add_patch(arr)
             arrow_artists.append(arr)
 
-    def update(fi: int):
+    def update(fi: int) -> tuple:
         t = frames[fi]
         day, hour = _tick_to_dayhour(t, dt_min)
 
@@ -374,7 +406,13 @@ def main() -> None:
 
         return (sc, kpi_text, *arrow_artists)
 
-    ani = FuncAnimation(fig, update, frames=len(frames), interval=1000 // int(args.fps), blit=False)
+    ani = FuncAnimation(
+        fig,
+        update,
+        frames=len(frames),
+        interval=1000 // int(args.fps),
+        blit=False,
+    )
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

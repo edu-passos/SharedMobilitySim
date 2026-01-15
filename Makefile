@@ -1,7 +1,4 @@
-.PHONY: run ruff ruff-format ruff-check ruff-fix mypy
-
-run:
-	uv run python3 -m scripts.run_sim
+.PHONY: ruff ruff-format ruff-check ruff-fix mypy
 
 ruff: ruff-format ruff-fix
 

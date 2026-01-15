@@ -62,9 +62,7 @@ def apply_scenario(
     raise ValueError(f"Unknown scenario '{scenario}'. Use: baseline, hotspot_od, hetero_lambda, event_heavy.")
 
 
-# -----------------------------
 # Arms: grid
-# -----------------------------
 def make_param_arms(km_budgets: list[float], charge_fracs: list[float]) -> list[dict[str, float]]:
     arms: list[dict[str, float]] = []
     for km in km_budgets:
@@ -100,7 +98,7 @@ def context_from_obs(obs: dict[str, np.ndarray]) -> np.ndarray:
     sin_h = float(tod[0]) if tod.size >= 1 else 0.0
     cos_h = float(tod[1]) if tod.size >= 2 else 1.0
 
-    # optional fields (your env includes these)
+    # optional fields
     weather_fac = float(np.asarray(obs.get("weather_factor", np.array([1.0])))[0])
     event_stats = np.asarray(obs.get("event_stats", np.array([1.0, 1.0])), dtype=float).reshape(-1)
     event_mean = float(event_stats[0]) if event_stats.size >= 1 else 1.0
@@ -130,9 +128,7 @@ def context_from_obs(obs: dict[str, np.ndarray]) -> np.ndarray:
     )
 
 
-# -----------------------------
 # Context scaling (frozen z-score)
-# -----------------------------
 class ZScoreScaler:
     """Frozen z-score scaler using Welford running moments during calibration."""
 
@@ -196,8 +192,6 @@ def calibrate_context_scaler(
     d: int,
 ) -> ZScoreScaler:
     """Collect context vectors at block boundaries and fit a frozen z-score scaler."""
-
-    # Do not scale the bias term (last feature).
     scale_mask = np.ones(d, dtype=bool)
     scale_mask[-1] = False
 
@@ -299,13 +293,12 @@ class LinUCB:
         self.A[a] += np.outer(x, x)
         self.b[a] += r * x
 
-        # Sherman–Morrison update for inverse:
+        # Sherman-Morrison update for inverse:
         # (A + x x^T)^(-1) = A^{-1} - (A^{-1} x x^T A^{-1}) / (1 + x^T A^{-1} x)
         A_inv = self.A_inv[a]
         v = A_inv @ x
         denom = 1.0 + float(x @ v)
-        if denom < 1e-12:
-            denom = 1e-12  # safety
+        denom = max(denom, 1e-12)  # safety
         self.A_inv[a] = A_inv - np.outer(v, v) / denom
 
         self.counts[a] += 1
@@ -404,14 +397,13 @@ def run_episode(
 
         # Learning reward:
         # reward_t = -J_t  => mean_reward_block = -(mean_J_block)
-        # Higher is better, and it is horizon-invariant if you use the mean.
+        # Higher is better, and it is horizon-invariant if the mean is used.
         mean_block_reward = float(block_reward / max(block_steps, 1))
 
         if b_idx >= int(warmup_blocks):
             bandit.update(arm_idx, x, mean_block_reward)
 
-        # Optional: cumulative KPIs "so far" (NOT block KPIs)
-        # This keeps you strictly on compute_episode_kpis only.
+        # Optional: cumulative KPIs "so far" (at block end)
         kpis_so_far = compute_episode_kpis(env, total_reward=total_reward) if (env.sim and env.sim.logs) else {}
 
         blocks.append(
@@ -459,7 +451,7 @@ def main() -> None:
 
     # planners
     p.add_argument("--reloc", default="greedy")
-    p.add_argument("--charge", default="slack")
+    p.add_argument("--charge", default="greedy")
 
     # scenario
     p.add_argument("--scenario", default="baseline", help="baseline | hotspot_od | hetero_lambda | event_heavy")
@@ -481,7 +473,7 @@ def main() -> None:
     p.add_argument("--ctx_scale", choices=["none", "zscore"], default="zscore")
     p.add_argument("--ctx_calib_episodes", type=int, default=5, help="Episodes used to fit frozen context scaler.")
 
-    # constant action (keep neutral to avoid confounding)
+    # constant action (default)
     p.add_argument("--default_action", type=float, nargs=4, default=[0.0, 0.0, 0.0, 0.0])
 
     # output

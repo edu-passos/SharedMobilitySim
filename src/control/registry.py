@@ -40,7 +40,7 @@ class PlannerRegistry:
 REGISTRY = PlannerRegistry()
 
 
-# ---------- Built-in adapters (wrap your baseline functions) ----------
+# Built-in adapters
 def _reloc_greedy_adapter(x, C, cost_km, *, params: dict[str, Any]) -> Any:
     from control.planners import plan_relocation_greedy
 
@@ -57,7 +57,7 @@ REGISTRY.register_relocation("greedy", _reloc_greedy_adapter)
 REGISTRY.register_charging("greedy", _charge_greedy_adapter)
 
 
-# ---------- Optional: ML adapters ----------
+# Optional: ML adapters
 def _load_dotted(dotted: str):
     """Load a callable/class from a dotted path.
 
@@ -110,7 +110,7 @@ REGISTRY.register_relocation("ml", _reloc_ml_adapter)
 REGISTRY.register_charging("ml", _charge_ml_adapter)
 
 
-# ---------- No-op baselines (explicit controls) ----------
+# No-op baselines (explicit controls)
 def _reloc_noop_adapter(x, C, move_cost, *, params: dict[str, Any]) -> Any:
     # Relocation plan: empty list of moves
     return []

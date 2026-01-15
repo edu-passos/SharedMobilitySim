@@ -1,4 +1,4 @@
-"""scripts.eval_policy.py
+"""scripts.eval_policy.py.
 
 Evaluation runner + controlled sweeps + scenarios.
 
@@ -350,7 +350,6 @@ def main() -> None:
         "J_reloc_run",
         "J_charge_run",
         "J_queue_run",
-
         # service
         "availability_demand_weighted",
         "availability_tick_avg",
@@ -360,7 +359,6 @@ def main() -> None:
         "served_total",
         "served_new_total",
         "unmet_total",
-
         # queue levels
         "queue_total_avg",
         "queue_total_p95",
@@ -370,17 +368,14 @@ def main() -> None:
         "queue_rate_p95",
         "queue_rate_p99",
         "queue_rate_max",
-
         # SLA time-above-threshold
         "frac_ticks_queue_gt_10",
         "frac_ticks_queue_gt_20",
-
         # queue stability
         "dq_mean",
         "dq_p95",
         "dq_p99",
         "dq_max",
-
         # operations totals
         "relocation_km_total",
         "reloc_units_total",
@@ -390,18 +385,15 @@ def main() -> None:
         "charge_utilization_avg",
         "plugged_total",
         "plugged_reserve_total",
-
         # operations burstiness
         "reloc_km_p95",
         "reloc_km_p99",
         "reloc_units_p95",
         "reloc_units_p99",
-
         # efficiency ratios
         "km_per_served",
         "eur_per_served",
         "kwh_per_served",
-
         # balance/state proxies
         "empty_ratio_avg",
         "empty_ratio_p95",
@@ -414,7 +406,6 @@ def main() -> None:
         "fill_p10_avg",
         "fill_p90_avg",
         "fill_spread_avg",
-
         # energy / SoC health
         "soc_mean_avg",
         "soc_mean_vehicles_avg",
@@ -422,17 +413,14 @@ def main() -> None:
         "soc_station_min_p05",
         "soc_station_p10_avg",
         "frac_ticks_soc_p10_lt_0_2",
-
         # rentability primitives
         "rentable_frac_avg",
         "soc_bind_frac_avg",
-
         # overflow
         "overflow_rerouted_total",
         "overflow_dropped_total",
         "overflow_extra_min_total",
     ]
-
 
     summaries = {name: _aggregate(rows, report_keys) for name, rows in per_policy.items()}
 
