@@ -40,67 +40,55 @@
 \maketitle
 
 \begin{abstract}
-The following report involves the creation of a realistic simulation of an urban micro-mobility system, specialized for the management of shared electric scooter fleets. Its main purpose is to study different agents and respective policies under multiple scenarios, and, thus, analyze trade-offs between availability, waiting queues, and operational cost. The results indicate that Soft-Actor Critic (SAC) algorithm consistently delivers the best results across all scenarios. Nevertheless, its lack of interpretability may introduce risk and reduce transparency when implemented in the real world. Interpretable agents such as the Heuristic Agent (with manually crafted rules) and the Contextual Bandit (LinUCB) perform well, although they fail under demand heterogeneity and tend to sacrifice service quality, respectively. [PRECISO DE INFORMAÇÕES SOBRE O Episodic Multi-Armed Bandit]
-% TODO:
+This report presents a realistic discrete-time simulation of an urban shared micro-mobility system for electric scooter fleet management. The simulator models stochastic demand with diurnal effects, weather variation, and localized events, as well as operational constraints such as station capacity, minimum state-of-charge (SoC) for rentals, charging delays, and relocation effort. We evaluate multiple controller families -- static planner baselines, a tick-level heuristic, episodic and contextual bandits, and a deep reinforcement learning agent (Soft Actor-Critic, SAC) -- across multiple network instances and scenario shifts.
 
+Across networks, SAC is consistently among the top-performing methods and achieves the best or near-best objective in several configurations; however, tuned static baselines and the heuristic controller remain competitive in nominal conditions. Under scenario shift, long-horizon (168h) performance is primarily limited by queue accumulation under persistent spatial heterogeneity, while episodic bandits identify stable static operating modes but cannot adapt within an episode. Overall, the results emphasize that nominal performance alone is insufficient: robustness deltas and objective decomposition are necessary to reveal failure modes and trade-offs between service quality and operational cost.
 \end{abstract}
+
 
 \begin{IEEEkeywords}
 Modelling, reinforcement learning, scooter fleet management, simulation
 \end{IEEEkeywords}
 
 \section{Introduction}
-Shared electric micro-mobility systems operated by private companies have become common in urban environments. This trend is driven by the daily congestion, environmental pressures, and the limited flexibility of traditional public transportation. Electric scooters offer a compact alternative for short-distance travel, and their deployment does not require major infrastructure investments. However, the management of these fleets presents the challenge of keeping scooters continuously available, which leads to costs related to scooter redistribution and battery charging, both of which are strongly impacted by spatial and temporal demand imbalance.
+\paragraph{Context and motivation}
+Managing a shared e-scooter fleet is an operational control problem in which an operator must keep vehicles available across a city despite stochastic demand, spatial imbalance, battery depletion, charging delays, and finite relocation/charging resources. In practice, diurnal cycles, weather, and localized events can quickly drain stock at high-demand stations while other stations saturate, leading to unmet demand and persistent queues. Because these effects compound over time, nominal performance under ``typical'' conditions can mask fragile strategies that fail under scenario shift.
 
-In more detail, the variance in scooter demand is influenced by commute patterns, weather conditions, and special events. As a result, in certain situations, some stations may become saturated while others are empty, which causes a reduced scooter availability and poor service quality. This imbalance is further complicated by battery constraints and charging delays, which limit vehicle usability and introduce additional operational dependencies. Since fleet size, charging capacity, and relocation resources are finite, operators must constantly decide when and where to relocate and recharge the scooters. On the one hand, an excessive intervention will increase operational cost, but on the other hand, an insufficient intervention leads to unmet demand, longer waiting times, and revenue loss. Ultimately, the problem consists of selecting redistribution and charging actions over time that minimize operational cost while maintaining acceptable service quality under uncertainty and resource constraints.
+\paragraph{Modeling perspective}
+The proposed simulator is primarily \emph{prescriptive}, supporting decisions on relocation and charging, it is also \emph{descriptive} through explicit state tracking (availability, queue backlog, SoC), \emph{predictive} in the sense that demand intensity evolves as a stochastic time-dependent process influenced by weather and events, and \emph{speculative} via ``what-if'' scenario stress tests. It is \emph{normative} only in the operational sense that policies are compared using an explicit objective that encodes a value judgement about service quality versus operational cost.
 
-Indeed, an ever-changing city is poorly suited to simple static planning, as manually crafted rules do not account for demand heterogeneity and stochastic external influences. Consequently, there is a strong need for systematic evaluation tools that allow the comparison of management strategies and the analysis of trade-offs between availability, waiting queues, and operational cost. Simulation provides a controlled and flexible environment to study these interactions, avoiding the risks and expenses of real-world experimentation.
+\paragraph{Problem statement}
+Over a discrete horizon of $T$ time steps, the system state $\mathcal{S}_t$ summarizes fleet counts, battery SoC, and queue backlog across stations. At each step, a control policy selects an action $\mathbf{a}_t \in [0,1]^4$ that parameterizes relocation and charging planners, producing executable interventions that drive the transition $\mathcal{S}_t \rightarrow \mathcal{S}_{t+1}$ under stochastic demand and exogenous factors. The technical objective is to minimize the time-averaged normalized cost
+\begin{equation}
+J_{\mathrm{run}}=\frac{1}{T}\sum_{t=0}^{T-1}\left(
+w_{U}\frac{U_t}{U_0}+w_{R}\frac{R_t}{R_0}+w_{C}\frac{C_t}{C_0}+w_{Q}\frac{Q_t}{Q_0}
+\right),
+\end{equation}
+which trades off service quality (unavailability and queues) against operational effort (relocation distance and charging cost).
 
-The aim of this project is to build a realistic simulation of an urban shared electric scooter system for the evaluation of daily fleet management strategies. The primary goal is to minimize operating costs while maximizing service quantity and quality. To achieve this, the simulation models user demand, vehicle travel, battery depletion, charging processes, and operator-driven relocation actions, while incorporating stochastic exogenous factors such as weather and events. Multiple decision-making approaches are evaluated, including baseline policies, interpretable heuristic and bandit-based agents, and reinforcement learning methods such as Soft Actor-Critic (SAC).
+\paragraph{Aim, goals, research questions, and hypotheses}
+The aim of this project is to provide a realistic and reproducible simulation-based testbed for scooter fleet management and to compare control strategies under uncertainty and scenario shift. Concretely, we (i) build a discrete-time simulator grounded in real city graphs and operational constraints, (ii) implement multiple controller families (static planners, an interpretable heuristic, bandits, and deep RL), and (iii) evaluate performance under both short (24h) and long (168h) horizons using robustness deltas and objective decomposition.
+We address: (RQ1) whether tuned static planners remain competitive under nominal demand; (RQ2) which controllers are most robust under persistent heterogeneity and event shocks; (RQ3) how long-horizon evaluation changes ranking and failure modes; and (RQ4) the interpretability--robustness trade-off.
+We hypothesize that (H1) SAC improves performance under sustained heterogeneity by adapting intervention intensity, (H2) queue accumulation dominates long-horizon failures, (H3) contextual bandits can adapt but may be high-variance on long horizons, and (H4) a well-designed heuristic can match top performance in benign regimes with greater transparency.
 
-The central research questions address how different management policies perform under heterogeneous and time-dependent demand, how battery and charging constraints affect system efficiency, and what trade-offs arise between service quality and operational cost. The underlying hypothesis is that learning-based agents achieve superior performance by adapting to complex demand patterns, while interpretable approaches provide greater transparency but may degrade under demand heterogeneity.
-
-This report first describes the system model and simulation framework, followed by the decision-making agents and policies. The evaluation methodology and performance metrics are then presented, along with a comparative analysis of results across multiple scenarios. The report concludes with a discussion of key findings, limitations, and directions for future work.
-
-\textit{
-  \textbf{TODOs:}
-  \begin{itemize}
-    \item Context
-    \item Problem statement. Clearly define the research question or technical challenge with a precise problem description and formal representations
-    \item Motivation (to solve the problem) / significance
-    \item Aim and goals
-    \item Aim: the main expected outcome of this research project (the big picture!)
-    \item Goals: specific objectives to be accomplished
-    \item Research questions
-    \item Hypotheses
-    \item Document/paper structure
-  \end{itemize}
-}
-
-\section{Related Work}
-
-\textit{
-  \textbf{TODOs:}
-  \begin{itemize}
-    \item Review of existing literature.
-    \item Relevant concepts and studies.
-    \item Summarize background and related work to highlight gaps addressed by the project.
-    \item Discussion and critical analysis.
-  \end{itemize}
-}
-
-The problem falls within the field of Urban Mobility and, more specifically, the subfield of Shared Micromobility and Fleet Management. It addresses how cities can efficiently manage and balance fleets of shared electric vehicles to meet fluctuating demand patterns throughout the day. As a result, and similarly to many of the modelling projects that seek to study the real world, this issue lies at the intersection of several disciplines.
-
-From the perspective of transportation science, the problem concerns the modeling of human movement patterns and travel demand within urban environments. It involves understanding how people choose modes of transport, how their choices change with time of day, weather, or location, and how these behaviors influence the spatial distribution of shared vehicles.
-
-In the area of optimization and operations research, the challenge translates into a set of complex decision problems. These include vehicle rebalancing (determining how and when to move vehicles from low-demand to high-demand areas), routing and scheduling of redistribution trucks, and the design of user incentives to encourage self-balancing behavior. Such problems are often formulated as variants of the Vehicle Routing Problem (VRP), capacitated network flow models, or stochastic optimization problems. Furthermore, the possibility of incorporating machine learning brings a predictive and adaptive layer to the system.
+\paragraph{Paper structure}
+Section \ref{sec:related_work} reviews related work; Section \ref{sec:materials_methods} describes the simulator, planners, and agents; Section \ref{sec:results} presents the experimental protocol and results; and Section \ref{sec:conclusion} concludes with limitations and future work.
 
 
-\section{Materials and Methods}
+
+\section{\label{sec:related_work}Related work}
+Shared mobility fleet management is typically studied via optimization and simulation for rebalancing under stochastic demand, and via learning-based control for adaptive repositioning. Mijnster~\cite{mijnster2022sharedmobility_review} surveys simulation--optimization approaches for matching supply and demand, Qin et al.~\cite{qin2022rl_ridesharing_survey} review RL methods for mobility-on-demand control under non-stationarity and long-horizon feedback, and Villa-Zapata et al.~\cite{villazapata2024equity_rebalancing} highlight multi-objective formulations (e.g., efficiency and equity) that motivate explicit trade-off analysis.
+
+
+
+
+
+
+\section{\label{sec:materials_methods}Materials and Methods}
 
 The system is formalized as an agent-based discrete-time simulation shaped by the interactions between a single operator (the agent), the entities, and finite network resources. The agent acts by controlling specific parameters that influence either scooter relocation and charging. The primary entities are the customers and the vehicle fleet. Customers are modeled as transient entities represented by stochastic arrival events, while the fleet consists of vehicle counts circulating between nodes. These entities interact with stations, which function as passive resources within the system. Stations are characterized by static attributes such as geographic location, parking capacity (slots), and charger availability, effectively constraining the flow of entities by limiting parking and charging capacities.
 
-The simulation operates within a dynamic environment, whose specific instantiation for the experiments conducted is defined in \ref{tab:env-configs}, subject to external variations, including time-of-day effects, weather conditions, and special events. These environmental factors, combined with the stochastic user demand, constitute the \textit{uncontrollable exogenous variables}, corresponding to the probabilistic part of the system, as detailed in \ref{sec:sim_dynamics}.
+The simulation operates within a dynamic environment (whose specific instantiation for the experiments conducted is defined in Table \ref{tab:env-configs}), subject to external variations, including time-of-day effects, weather conditions, and special events. These environmental factors, combined with the stochastic user demand, constitute the \textit{uncontrollable exogenous variables}, corresponding to the probabilistic part of the system, as detailed in \ref{sec:sim_dynamics}.
 
 The instantaneous status of the system is captured by state variables, which correspond to the \textit{endogenous variables} formally defined in \ref{sec:sim_state}. The evolution of this state is driven by customer arrivals, trip completions, and operator interventions, which trigger specific activities including vehicle rental, fleet relocation, and battery charging. The infrastructure parameters and resource limits that bound these activities form the \textit{controllable exogenous variables}, explored in \ref{sec:sim_config}. Additionally, the specific relocation and charging plans built by the operational policies at each time step are included in the controllable exogenous variables, as they are generated externally to the simulation dynamics, by the agent.
 
@@ -114,7 +102,6 @@ The simulation environment is characterized by a set of controllable exogenous p
   \item $\mathcal{D} \in \mathbb{R}^{N \times N}$: Distance, where $d_{ij}$ represents the distance (km) between station $i$ and $j$.
   \item $K \in \mathbb{N}^N$: Vector of station chargers at each node.
   \item $\rho \in \mathbb{R}^N$: Charging rate vector, where $\rho_i$ denotes the SoC gain per hour at station $i$.
-  % TODO: Are we sure this is total battery per vehicle? What does that mean?
   \item $B$: Total battery capacity per vehicle (kWh).
   \item $c_{energy}$: Unit cost of energy (€/kWh).
   \item $s_{min}$: Minimum SoC threshold required for a scooter to be eligible for rental. Always set to 0.15 (15\%).
@@ -141,7 +128,8 @@ Demand arrivals $\mathbf{A}_t$ follow a non-homogeneous Poisson process:
 \begin{equation}
   \lambda_{i,t}^{eff} = \lambda_i \cdot f_{time}(t) \cdot f_{weather}(t) \cdot f_{event}(t)
 \end{equation}
-where $\lambda_i$ is the base arrival rate at station $i$, and $f_{(\cdot)} \in [0,1]$ model time-of-day, weather, and special event influences.
+where $\lambda_i$ is the base arrival rate at station $i$, and $f_{\text{time}}(t)$, $f_{\text{weather}}(t)$, and $f_{\text{event}}(t)$ are nonnegative multiplicative factors that model diurnal variation, weather attenuation, and localized event surges, respectively.
+
 
 The number of served users is limited by the rentable stock of scooters ($s_{i,t} > s_{min}$).
 
@@ -168,27 +156,38 @@ where $k$ is the number of scooters relocated from station $i$ to $j$, constrain
 \subsubsection{Charging Logic}
 Charging is applied to idle scooters connected to plugs according to a charging plan. The number of charging scooters $k^{plug}_{i,t}$ is constrained by station stock $x_{i,t}$ and available chargers $K_i$. The energy mass update is:
 \begin{equation}
-  m_{i,t} \leftarrow m_{i,t} + k^{plug}_{i,t} \cdot \rho_i \cdot \Delta t
+  m_{i,t} \leftarrow m_{i,t} + k^{plug}_{i,t} \cdot \rho_i \cdot \frac{\Delta t}{60}.
 \end{equation}
 
 
 \subsubsection{Optimization Objective}
-% TODO: CHECK NOMENCLATURE WITH WHAT IS USED ABOVE (LoS, etc.)
-The goal is to minimize the cumulative operational cost over the $H$ being formally defined as minimizing $\sum_{t=0}^{T} J_t$, where the step-wise cost $J_t$, corresponding to the decision criteria used to evaluate different agents and policies controlling the system, is:
-
+The objective is to minimize the \emph{time-averaged} normalized cost over an episode of length $T$ time steps, where
+$T = 60H/\Delta t$ and $H$ is the horizon in hours. The step-wise cost is defined as:
 \begin{equation}
-  J_t = w_{U} \frac{U_t}{U_s} + w_{R} \frac{R_t}{R_s} + w_{C} \frac{C_t}{C_s} + w_{Q} \frac{Q_t}{Q_s}
+  J_t =
+  w_{U} \frac{U_t}{U_0} + w_{R} \frac{R_t}{R_0} + w_{C} \frac{C_t}{C_0} + w_{Q} \frac{Q_t}{Q_0}.
 \end{equation}
+The reported episode objective is the time average:
+\begin{equation}
+  J_{\mathrm{run}} = \frac{1}{T}\sum_{t=0}^{T-1} J_t.
+\end{equation}
+For completeness, the cumulative episode cost is $J_{\mathrm{tot}} = \sum_{t=0}^{T-1}J_t = T \cdot J_{\mathrm{run}}$.
+
+
 
 The cost components correspond to the Key Performance Indicators (KPIs) used to evaluate system performance.
 \begin{itemize}
-  \item $U_t$: \textbf{Unavailability Rate}. Defined as $1 - \frac{served\_new_t}{demand_t}$, representing the proportion of new arrivals that could not be served immediately during step $t$.
-  \item $R_t$: \textbf{Relocation Distance}. The total kilometers traveled by the operator's fleet to rebalance scooters.
-  \item $C_t$: \textbf{Charging Cost}. The financial cost (€) incurred by charging scooters, calculated based on energy consumed (kWh) and unit electricity price.
-  \item $Q_t$: \textbf{Queue Backlog}. The total number of users currently waiting for scooters across all stations. Unlike $U_t$, which measures instantaneous failure, $Q_t$ penalizes persistent congestion.
+  \item $U_t$: \textbf{Unavailability rate}. Defined as
+  $U_t = 1 - \frac{\mathrm{served\_new}_t}{\max(1,\mathrm{demand}_t)}$,
+  i.e., the fraction of new arrivals that cannot be served immediately at step $t$.
+  We also report \textbf{availability} as $A_t = 1 - U_t$ for interpretability.
+  \item $R_t$: \textbf{Relocation distance}. Total kilometers traveled by the operator to rebalance scooters at step $t$.
+  \item $C_t$: \textbf{Charging cost}. Charging cost in euros at step $t$, computed from energy consumed (kWh) and the unit electricity price.
+  \item $Q_t$: \textbf{Queue backlog}. Total number of users waiting across all stations at step $t$; unlike $U_t$, this penalizes persistent congestion.
 \end{itemize}
 
-The coefficients $w_{(\cdot)}$ represent the importance weights of each objective. To ensure numerical stability and comparable magnitudes between disparate units (ratios, kilometers, Euros, and user counts), each term is normalized by a baseline scale factor ($U_s, R_s, C_s, Q_s$).
+
+The coefficients $w_{(\cdot)}$ represent the importance weights of each objective. To ensure numerical stability and comparable magnitudes between disparate units (ratios, kilometers, Euros, and user counts), each term is normalized by per-network scale factors $(U_0,R_0,C_0,Q_0)$ calibrated as in Table~\ref{tab:env-configs}.
 
 \subsection{Methods}
 
@@ -204,7 +203,7 @@ As the decision-making authority and optimization objective remain with the agen
 
 \subsubsection{\label{sec:agent_env}Agent-Environment Interaction}
 
-The simulation environment's was implemented according to a standard reinforcement learning interface, similar to that of Gymnasium~\cite{towers2024gymnasium}. This was achieved through the implementation of the \texttt{reset} and \texttt{step} methods, which initialize the environment and apply an action, respectively, as it provides better modularity and separation of concerns. This design choice allows for near-seamless integration with RL libraries, only requiring the wrapping of the environment to match the expected input and output data structures' formats.
+The simulation environment was implemented according to a standard reinforcement learning interface, similar to that of Gymnasium~\cite{towers2024gymnasium}. This was achieved through the implementation of the \texttt{reset} and \texttt{step} methods, which initialize the environment and apply an action, respectively, as it provides better modularity and separation of concerns. This design choice allows for near-seamless integration with RL libraries, only requiring the wrapping of the environment to match the expected input and output data structures' formats.
 
 On the agent's actions, the previously explained abstraction from concrete plans to normalized parameters is crucial. It generalizes and simplifies the agent's decision-making process, allowing it to focus on high-level strategy rather than low-level operational details, enabling the use of continuous control algorithms that can efficiently explore and optimize within this bounded action space.
 
@@ -234,7 +233,7 @@ The system evaluates four distinct agents, each representing a different approac
 
 \paragraph{Heuristic Agent}
 
-A rule-based reactive controller that computes actions from observation features without learning. It maintains exponentially weighted moving averages (EWMA) of recent relocation distance and queue rate to detect operational trends. Actions are derived through explicit logic and change every simulation tick: relocation thresholds ($a_0, a_1$) adapt to queue pressure and capacity imbalance, the target fill ratio ($a_2$) responds to peak-hour detection and system throttling, and charging intensity ($a_3$) scales with low-SoC tail percentiles. This agent represents white-box decision-making, through manually crafted rules based on domain knowledge, providing interpretability and absolute transparency, but lacking adaptability. As such, it serves as a benchmark to evaluate the benefits of learning-based approaches.
+A rule-based reactive controller that computes actions from observation features without learning. It maintains exponentially weighted moving averages (EWMA) of recent relocation distance and queue rate to detect operational trends. Actions are derived through explicit logic and change every simulation tick: relocation thresholds ($a_0, a_1$) adapt to queue pressure and capacity imbalance, the target fill ratio ($a_2$) responds to peak-hour detection and system throttling, and charging intensity ($a_3$) scales with low-SoC tail percentiles. This agent represents white-box decision-making, through manually crafted rules based on domain knowledge, providing interpretability and absolute transparency.
 
 \paragraph{Episode-Level Bandit (UCB1)}
 
@@ -258,7 +257,7 @@ The experimental simulation was implemented in Python, using the following libra
 \end{itemize}
 
 \subsection{\label{sec:environ_spec}External Data}
-The simulation environment is grounded in realistic topological data. The road network is extracted using OSMnx~\cite{https://doi.org/10.1111/gean.70009} from real cities, specifically selecting the bike-accessible network, as it most closely matches the one used by electric scooters. Each node is connected to every other node, with the edges retaining the shortest-path distance between them. This is done to abstract away the minute details of routing, which provide little meaning to the problem at hand, while preserving realistic inter-station distances. The travel time between stations is derived from these distances, assuming a constant average speed of 15 km/h, typical for shared electrical scooters in urban settings, and within the speed limits defined in Portuguese traffic legislation~\cite{DL102B2020}.
+The simulation environment is grounded in realistic topological data. The road network is extracted using OSMnx~\cite{https://doi.org/10.1111/gean.70009} from real cities, specifically selecting the bike-accessible network, as it most closely matches the one used by electric scooters. Each node is connected to every other node, with the edges retaining the shortest-path distance between them. This is done to abstract away the minute details of routing, which provide little meaning to the problem at hand, while preserving realistic inter-station distances. The travel time between stations is derived from these distances, assuming a constant average speed of 15 km/h, typical for shared electrical scooters in urban settings, and within the speed limits defined in Portuguese traffic legislation.
 
 
 \subsection{Solution Design and Experimental Setup}
@@ -267,7 +266,7 @@ The simulation experiments were conducted using several environment configuratio
 
 \begin{table}[ht]
   \centering
-  \caption{Summary of environment configurations used in experiments.}
+  \caption{Summary of environment configurations used in experiments (Phase A: 24h; Phase B: 168h).}
   \label{tab:env-configs}
   \begin{threeparttable}
     \begin{tabular}{lcccc}
@@ -276,14 +275,14 @@ The simulation experiments were conducted using several environment configuratio
       \hline
       Stations, $N$ & 10 & 20 & 20 & 20 \\
       Time step, $\Delta t$ & 5 & 5 & 5 & 5 \\
-      Horizon, $H$ & 168 & 168 & 168 & 168 \\
+      Horizon, $H$ (hours) & 24 / 168 & 24 / 168 & 24 / 168 & 24 / 168 \\
       Capacity p/station, $C$ & 12 & 12 & 12 & 12 \\
       Chargers p/station, $K$ & 12 & 12 & 12 & 12 \\
       Charge rate, $\rho$ & 0.35 & 0.35 & 0.35 & 0.35 \\
       Battery, $B$ & 0.50 & 0.50 & 0.50 & 0.50 \\
       Energy cost, $c_{energy}$ & 0.20 & 0.20 & 0.20 & 0.20 \\
       Base demand, $\lambda$ & 0.35 & 0.35 & 0.35 & 0.35 \\
-      Seed & 42 & 42 & 42 & 42 \\
+      Base seed & 42 & 42 & 42 & 42 \\
       \hline
       \multicolumn{5}{l}{\textit{Scoring weights}} \\
       $w_\text{unavail}$ & 5.0 & 5.0 & 5.0 & 5.0 \\
@@ -299,11 +298,7 @@ The simulation experiments were conducted using several environment configuratio
       \hline
     \end{tabular}
     \begin{tablenotes}\footnotesize
-      \item Minimum distance between any pair of stations:
-      \item[a] 500m
-      \item[b] 600m
-      \item[c] 900m
-      \item[d] 700m
+      \item Minimum distance between any pair of stations: [a] 500m, [b] 600m, [c] 900m, [d] 700m
     \end{tablenotes}
   \end{threeparttable}
 \end{table}
@@ -319,41 +314,201 @@ Four scenarios were designed to evaluate agent robustness under varying demand c
   \item \textbf{Event Heavy}: Applies stochastic event multipliers $f_{event}(t)$ on top of baseline demand, emulating sudden surges from concerts, sports matches, or weather disruptions that stress system capacity and charging reserves. Note that this does not increase demand on stations that are not affected by events.
 \end{itemize}
 
-% TODO:: Describe the experimental protocol, including the number of episodes, evaluation metrics, and statistical analysis methods used to compare agent performances across different scenarios.
 
-\section{Results and Discussion}
 
-\textit{
-  \textbf{TODOs:}
-  \begin{itemize}
-    \item Methods to collect results
-    \item Result presentations (graphs, charts, diagrams, tables,
-    associations)
-    \item Critical discussion of bad results
-    \item Critical discussion of good results
-    \item Focus on counter-intuitive results
-    \item Focus on additional results (other than the rest of the literature)
-  \end{itemize}
-}
+\section{\label{sec:results}Results and Discussion}
 
-\section{Conclusion and Future Work}
-\textit{
-  \textbf{TODOs:}
-  \begin{itemize}
-    \item Remark the conclusions drawn from the related work and gap analysis.
-    \item Remark problem and goals.
-    \item Remark the main results and findings.
-    \item Summarize the main contributions.
-    \item Scientific
-    \item Application
-    \item Technological
-    \item Future work
-    \item Further developments (how to improve the current work)
-    \item Future opportunities / R\&D paths (spin-off projects/problems of the current work)
-  \end{itemize}
-}
+\subsection{\label{sec:results_protocol}Experimental protocol, artifacts, and aggregation}
 
+All methods are evaluated in the agent--planner--simulator loop described in Section~\ref{sec:agent_env}. Two horizons are considered: a short-horizon setting of 24 hours (Phase A) and a long-horizon setting of 168 hours (Phase B), both using a 5-minute time step. For each \texttt{(horizon, network, scenario, method)} configuration, multiple independent random seeds are executed (10--30, depending on runtime) to estimate mean performance and variability under stochastic demand, weather, and event realizations.
+
+Each run produces a structured JSON file, with one JSON file per scenario. Baseline planners are evaluated via \texttt{scripts.eval\_policy.py}; learning-based controllers and adaptive heuristics (Heuristic, UCB1, LinUCB, SAC) store both a method-level summary and, when applicable, traces (e.g., bandit arm selections). Aggregation is performed by \texttt{analyze\_results.py}, normalizes run schemas, and exports two primary artifacts: \texttt{master\_runs.csv} (objective and KPIs with mean$\pm$std over seeds) and \texttt{robustness.csv} (scenario deltas relative to Baseline for each \texttt{(phase, network, method)}).
+
+The results in this section report Phase A (24h) and Phase B (168h) evaluation outputs. Intermediate training/debug phases are excluded to avoid confounding evaluation statistics.
+
+\subsection{\label{sec:results_metrics}Objective and reported metrics}
+
+Methods are ranked by the time-averaged normalized objective over an episode:
+\begin{equation}
+J_{\mathrm{run}} = \frac{1}{T}\sum_{t=0}^{T-1}
+\left(
+w_{U} \frac{U_t}{U_0} + w_{R} \frac{R_t}{R_0} + w_{C} \frac{C_t}{C_0} + w_{Q} \frac{Q_t}{Q_0}
+\right).
+\end{equation}
+
+where each component penalizes (i) unavailability, (ii) relocation effort, (iii) charging cost, and (iv) queue backlog, respectively. The normalization scales $(U_0,R_0,C_0,Q_0)$ are calibrated per network (Table~\ref{tab:env-configs}), and therefore absolute $J_{\mathrm{run}}$ values are most interpretable when comparing methods \emph{within the same network}, because normalization scales differ across networks (Table~\ref{tab:env-configs}).
+
+In addition to $J_{\mathrm{run}}$, we report service and operational KPIs: availability $A=1-U$ (and the corresponding unavailability $U$), unmet-rate summaries, queue statistics, relocation distance, and charging cost. These KPIs are necessary to interpret cases where similar objective values arise via different trade-offs (e.g., lower cost but degraded service versus higher operational effort and stable service).
+
+\subsection{\label{sec:results_baseline}Main results under Baseline demand}
+
+Tables~\ref{tab:baseline_J_24h} and~\ref{tab:baseline_J_168h} summarize Baseline-scenario performance for 24h and 168h horizons, respectively. ``Best baseline'' denotes the best-performing \emph{static} planner configuration within the baseline family for the same network and horizon (selected by minimum Baseline $J_{\mathrm{run}}$). The key interpretation points are the following.
+
+First, tuned static planners are consistently competitive in the Baseline scenario. This indicates that the planner abstraction is effective: a significant fraction of achievable performance can be obtained by selecting appropriate relocation and charging intensities, even without stateful learning. This is operationally relevant, as static planners are simple to deploy and easy to audit.
+
+Second, interpretable adaptive controllers can closely track the best-performing methods under Baseline demand. In particular, the tick-level heuristic frequently matches the best baseline and remains competitive with SAC across multiple networks. This supports the practical value of white-box control: high performance can be achieved with transparent rules when demand is near the assumptions encoded by the planner parameterizations.
+
+Third, long-horizon evaluation amplifies differences between controllers. Over 168 hours, small systematic biases (e.g., under-charging, delayed relocation response) can compound into persistent backlogs. As a result, methods that appear comparable at 24 hours can separate more clearly at 168 hours, especially on larger or sparser graphs.
+
+Quantitatively, rankings vary by network and horizon. On Porto10, SAC is the best method under Baseline demand for both horizons: at 24h it attains $10.97\pm1.73$ versus the best static baseline at $11.41\pm2.42$, and at 168h it attains $10.85\pm1.03$ versus $13.61\pm1.80$ (Tables~\ref{tab:baseline_J_24h}--\ref{tab:baseline_J_168h}). In contrast, on Porto20 (600m) the best static baseline remains strongest (24h: $9.96\pm0.87$; 168h: $23.11\pm2.93$), while SAC and the heuristic are moderately worse on the long horizon (both $\approx27$). For the sparser Porto20 (900m) and Lisbon20 networks, long-horizon objectives increase substantially and the best baseline remains the strongest reference (e.g., Porto20 (900m) 168h: $682.30\pm81.72$), whereas LinUCB exhibits occasional catastrophic behavior (e.g., Lisbon20 168h: $2328.75\pm553.70$), consistent with instability under long-horizon feedback and exploration.
+
+
+
+\begin{table}[t]
+  \centering
+  \caption{Baseline-scenario objective $J_{\mathrm{run}}$ for the 24-hour horizon (mean $\pm$ std over seeds). Lower is better.}
+  \label{tab:baseline_J_24h}
+  \scriptsize
+  \begin{tabular}{lcccc}
+    \hline
+    Method & Porto10 & Porto20 (600m) & Porto20 (900m) & Lisbon20 \\
+    \hline
+    Best baseline & 11.41 $\pm$ 2.42 & 9.96 $\pm$ 0.87 & 119.23 $\pm$ 22.76 & 98.43 $\pm$ 17.64 \\
+    Heuristic & 11.51 $\pm$ 1.39 & 11.15 $\pm$ 0.95 & 126.48 $\pm$ 22.81 & 99.54 $\pm$ 18.95 \\
+    UCB1 bandit & 12.35 $\pm$ 1.74 & 10.91 $\pm$ 1.23 & 147.72 $\pm$ 26.96 & 119.57 $\pm$ 23.37 \\
+    LinUCB bandit & 11.33 $\pm$ 2.76 & 13.30 $\pm$ 1.34 & 138.64 $\pm$ 28.52 & 110.61 $\pm$ 33.99 \\
+    SAC & 10.97 $\pm$ 1.73 & 10.87 $\pm$ 1.04 & 129.02 $\pm$ 24.58 & 104.63 $\pm$ 22.78 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+\begin{table}[t]
+  \centering
+  \caption{Baseline-scenario objective $J_{\mathrm{run}}$ for the 168-hour horizon (mean $\pm$ std over seeds). Lower is better.}
+  \label{tab:baseline_J_168h}
+  \scriptsize
+  \begin{tabular}{lcccc}
+    \hline
+    Method & Porto10 & Porto20 (600m) & Porto20 (900m) & Lisbon20 \\
+    \hline
+    Best baseline & 13.61 $\pm$ 1.80 & 23.11 $\pm$ 2.93 & 682.30 $\pm$ 81.72 & 438.01 $\pm$ 68.67 \\
+    Heuristic & 13.01 $\pm$ 1.53 & 27.26 $\pm$ 2.93 & 740.86 $\pm$ 83.92 & 518.53 $\pm$ 71.23 \\
+    UCB1 bandit & 14.78 $\pm$ 2.78 & 44.13 $\pm$ 4.25 & 1075.04 $\pm$ 92.42 & 879.80 $\pm$ 88.14 \\
+    LinUCB bandit & 173.41 $\pm$ 101.15 & 125.09 $\pm$ 31.02 & 730.37 $\pm$ 127.13 & 2328.75 $\pm$ 553.70 \\
+    SAC & 10.85 $\pm$ 1.03 & 27.28 $\pm$ 5.69 & 757.22 $\pm$ 128.84 & 528.16 $\pm$ 122.67 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+
+\subsection{Robustness to scenario shift}
+\label{sec:results_robustness}
+
+Robustness is assessed as scenario-induced degradation relative to Baseline for the same network, horizon, and method:
+\begin{equation}
+  \Delta J(\text{scenario}) = J(\text{scenario}) - J(\text{baseline}).
+\end{equation}
+This delta is computed per \texttt{(phase, network, method)} and materialized in \texttt{robustness.csv}. Reporting deltas avoids conflating scenario effects with per-network normalization differences.
+
+At the scenario level, persistent spatial heterogeneity dominates long-horizon degradation, but the ordering depends on how heterogeneity is introduced. For Porto10 at 168h, the selected best static baseline (\texttt{sweep\_\_km10\_\_c0}) attains $J_{\mathrm{run}}=13.61\pm1.80$ under Baseline demand. Under scenario shift, Event Heavy produces only a minor change ($\Delta J_{\text{event}}=0.41$, i.e., $J_{\mathrm{run}}=14.02$), whereas sustained spatial imbalance causes large degradation: Heterogeneous-$\lambda$ increases the objective by $\Delta J_{\text{hetero}}=68.03$ ($J_{\mathrm{run}}=81.64$), and Hotspot OD is the most damaging with $\Delta J_{\text{hotspot}}=76.27$ ($J_{\mathrm{run}}=89.88$), as reported by \texttt{dJ\_vs\_baseline} in \texttt{robustness.csv}.
+
+
+
+Table~\ref{tab:robustness} reports the aggregate robustness summary (mean$\pm$std over all network instances and stress scenarios) for each method. Two patterns are consistent with the system dynamics. First, persistent spatial heterogeneity tends to be more damaging than transient event bursts, because chronic imbalance accumulates queue backlog and sustained shortage at high-demand stations. Second, long-horizon robustness is materially harder than short-horizon robustness: a controller that is slightly miscalibrated can accumulate deficits and never fully recover over 168 hours.
+
+The magnitude of degradation increases substantially from 24h to 168h. For instance, the heuristic increases from $\Delta J = 31.67\pm 36.61$ at 24h to $141.10\pm 214.31$ at 168h, and SAC exhibits a similar rise from $32.39\pm 38.89$ to $141.30\pm 255.05$ (Table~\ref{tab:robustness}). The episodic UCB1 bandit also degrades more strongly on the long horizon ($142.73\pm 200.92$ versus $37.29\pm 44.94$), reflecting its inability to adapt within an episode when mismatch persists.
+
+
+A critical outcome is the variability of LinUCB on the 168-hour horizon: its aggregate robustness summary is $\Delta J = -42.71\pm 751.25$ (Table~\ref{tab:robustness}), where the negative mean indicates that some stress scenarios can be easier than Baseline for LinUCB in certain configurations, but the extremely large standard deviation evidences occasional catastrophic failures. This supports the need for explicit stability controls (e.g., conservative exploration schedules, feature normalization, or fallback modes) before deployment.
+
+
+\begin{table}[t]
+  \centering
+  \caption{Robustness to scenario shift (mean $\pm$ std). $\Delta J = J(\text{scenario}) - J(\text{baseline})$; lower is better.}
+  \label{tab:robustness}
+  \scriptsize
+  \begin{tabular}{lcc}
+    \hline
+    Method & $\Delta J$ (24h) & $\Delta J$ (168h) \\
+    \hline
+    Best baseline & 46.26 $\pm$ 60.42 & 291.50 $\pm$ 392.69 \\
+    Heuristic & 31.67 $\pm$ 36.61 & 141.10 $\pm$ 214.31 \\
+    UCB1 bandit & 37.29 $\pm$ 44.94 & 142.73 $\pm$ 200.92 \\
+    LinUCB bandit & 34.36 $\pm$ 43.91 & -42.71 $\pm$ 751.25 \\
+    SAC & 32.39 $\pm$ 38.89 & 141.30 $\pm$ 255.05 \\
+    \hline
+  \end{tabular}
+\end{table}
+
+\subsection{Objective decomposition and failure modes}
+\label{sec:results_decomp}
+
+To diagnose why methods succeed or fail, we rely on objective decomposition plots that report the mean contribution of each normalized term (unavailability, relocation, charging, queue). The dominant long-horizon failure mode is \emph{queue accumulation}: once persistent backlog forms under spatial heterogeneity, the queue term dominates the objective and overwhelms modest savings in relocation or charging costs. In practical terms, controllers that under-intervene may appear cost-effective early in an episode but eventually enter a queue-dominated regime from which recovery is slow.
+
+Conversely, strong performance in hard scenarios typically requires sustained corrective action: either more frequent and/or more aggressive relocation, or charging patterns that preserve usable SoC at high-demand stations. This trade-off is central to the management problem: improved service quality generally requires paying operational effort, and the decomposition makes that exchange explicit.
+
+\begin{figure*}[t]
+  \centering
+  \setlength{\fboxsep}{0pt}
+
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth,height=0.23\textheight,keepaspectratio]{figures/obj_decomp_baseline.png}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth,height=0.23\textheight,keepaspectratio]{figures/obj_decomp_hotspot.png}
+  \end{minipage}
+
+  \vspace{-1mm}
+
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth,height=0.23\textheight,keepaspectratio]{figures/obj_decomp_hetero.png}
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\linewidth,height=0.23\textheight,keepaspectratio]{figures/obj_decomp_event.png}
+  \end{minipage}
+
+  \vspace{-2mm}
+  \caption{Objective decomposition plots for the evaluated scenarios. Each plot reports the per-tick mean contribution of the normalized objective terms (unavailability, relocation, charging, and queue) for each method. Scenario identification is provided in the plot titles.}
+  \label{fig:obj_decomp_all_scenarios}
+  \vspace{-2mm}
+\end{figure*}
+
+\subsection{\label{sec:results_bandits}Bandit behavior and interpretability}
+
+Bandit-based controllers provide an interpretable decision layer because each arm corresponds to a discrete operational mode (a fixed planner-parameter configuration). The episodic UCB1 bandit selects one arm per episode and updates its estimates at the end of the episode, trading off exploration and exploitation via an upper-confidence rule. As a result, UCB1 typically converges toward a small subset of arms, concentrating pulls on modes that deliver stable average returns. This behavior is expected and operationally useful: it identifies good static regimes without requiring gradient-based training.
+
+However, episodic bandits are limited by design. Because they commit to a single mode for an entire episode, they cannot adapt within an episode to diurnal cycles, evolving SoC distributions, or localized event surges. Their achievable performance is also bounded by the expressiveness of the arm set: if no arm encodes the necessary intervention pattern for severe heterogeneity, the bandit cannot match more expressive adaptive controllers.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/bandit_arm_pulls_phaseb_168h_porto20_s900_x_bandit_ucb1_episode.png}
+  \caption{Episodic UCB1 arm pulls (Porto20\_s900, 168h). Concentration of pulls indicates convergence to a small subset of discrete operational modes.}
+  \label{fig:bandit_pulls_porto20_s900}
+\end{figure}
+
+
+
+
+\section{\label{sec:conclusion}Conclusion and Future Work}
+
+\subsection{Conclusions}
+This work developed a realistic discrete-time simulator for shared electric scooter fleet management and used it to evaluate multiple controller families under uncertainty, including weather variation, stochastic events, and spatially heterogeneous demand. Evaluation across two horizons (24h and 168h) and multiple network instances demonstrates that controller ranking is not invariant: methods that are competitive under nominal Baseline demand may degrade under scenario shift, especially when heterogeneity is persistent over time.
+
+A core empirical takeaway is that long-horizon performance is dominated by the ability to prevent \emph{queue accumulation} under sustained imbalance. Objective decomposition plots show that once backlog forms, the queue term dominates $J_{\mathrm{run}}$ and recovery becomes slow, making under-intervention a high-risk strategy even if it reduces short-term operational cost. Conversely, improved service quality generally requires paying relocation and/or charging effort, and the decomposition makes these trade-offs explicit rather than implicit.
+
+Finally, interpretability introduces a practical trade-off. The heuristic and bandit-based controllers can be audited and explained, and can perform competitively in benign regimes. However, bandits are constrained by the expressiveness of their arm set and, in the episodic case, by their inability to adapt within an episode. SAC can learn richer, continuous parameter schedules, but introduces opacity and requires additional safeguards for real-world deployment.
+
+\subsection{Main contributions}
+Scientifically, this report contributes a scenario-based evaluation methodology that separates nominal performance from robustness via within-configuration deltas $\Delta J$, complemented by objective decomposition to support causal interpretation of failure modes.
+
+From an application perspective, the simulator clarifies how operational constraints (finite capacity, minimum SoC, charging delay, relocation effort) shape achievable service levels, and how different controllers allocate intervention effort under demand heterogeneity.
+
+Technologically, the work provides a reproducible experimentation pipeline (scenario generation, controller evaluation, structured JSON logging, automated aggregation to CSV, and plot generation), enabling rapid iteration while maintaining an audit trail from raw runs to reported results.
+
+\subsection{Future work}
+Future work should prioritize (i) operational realism and (ii) robustness under heterogeneity. On the modeling side, relocation should be constrained by explicit operational resources (truck capacity, routing, staffing, and time windows).
+
+On the control side, contextual bandits should incorporate stronger feature normalization and richer context (including graph-aware features) to reduce long-horizon variance and improve regime discrimination. For SAC, improvements include longer training budgets, curriculum training from easier to harder scenarios, and state representations that better capture network structure. Finally, the simulator can be extended with operational levers such as dynamic pricing, user incentives, and proactive repositioning, enabling new research directions in end-to-end micromobility optimization under uncertainty.
+
+
+{\footnotesize
 \bibliographystyle{IEEEtran}
 \bibliography{references}
+}
 
 \end{document}
