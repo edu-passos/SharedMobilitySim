@@ -160,10 +160,11 @@ Charging is applied to idle scooters connected to plugs according to a charging 
 \end{equation}
 
 
-\subsubsection{Optimization Objective}
+\subsubsection{\label{sec:objective}Optimization Objective}
 The objective is to minimize the \emph{time-averaged} normalized cost over an episode of length $T$ time steps, where
 $T = 60H/\Delta t$ and $H$ is the horizon in hours. The step-wise cost is defined as:
 \begin{equation}
+    \label{eq:Jt}
   J_t =
   w_{U} \frac{U_t}{U_0} + w_{R} \frac{R_t}{R_0} + w_{C} \frac{C_t}{C_0} + w_{Q} \frac{Q_t}{Q_0}.
 \end{equation}
@@ -328,17 +329,15 @@ The results in this section report Phase A (24h) and Phase B (168h) evaluation o
 
 \subsection{\label{sec:results_metrics}Objective and reported metrics}
 
-Methods are ranked by the time-averaged normalized objective over an episode:
-\begin{equation}
-J_{\mathrm{run}} = \frac{1}{T}\sum_{t=0}^{T-1}
-\left(
-w_{U} \frac{U_t}{U_0} + w_{R} \frac{R_t}{R_0} + w_{C} \frac{C_t}{C_0} + w_{Q} \frac{Q_t}{Q_0}
-\right).
-\end{equation}
+We rank methods by the episode objective $J_{\mathrm{run}}$ defined in Section~\ref{sec:objective}
+(Eq.~\eqref{eq:Jt}); lower is better. Because the normalization scales $(U_0,R_0,C_0,Q_0)$ are
+calibrated per network (Table~\ref{tab:env-configs}), absolute objective values are most meaningful
+when comparing methods \emph{within} the same network.
 
-where each component penalizes (i) unavailability, (ii) relocation effort, (iii) charging cost, and (iv) queue backlog, respectively. The normalization scales $(U_0,R_0,C_0,Q_0)$ are calibrated per network (Table~\ref{tab:env-configs}), and therefore absolute $J_{\mathrm{run}}$ values are most interpretable when comparing methods \emph{within the same network}, because normalization scales differ across networks (Table~\ref{tab:env-configs}).
+To interpret trade-offs that can yield similar objective values, we additionally report the underlying
+service and operational KPIs: availability $A=1-U$ (and unavailability $U$), unmet-demand summaries,
+queue backlog statistics, relocation distance, and charging cost.
 
-In addition to $J_{\mathrm{run}}$, we report service and operational KPIs: availability $A=1-U$ (and the corresponding unavailability $U$), unmet-rate summaries, queue statistics, relocation distance, and charging cost. These KPIs are necessary to interpret cases where similar objective values arise via different trade-offs (e.g., lower cost but degraded service versus higher operational effort and stable service).
 
 \subsection{\label{sec:results_baseline}Main results under Baseline demand}
 
@@ -359,6 +358,7 @@ Quantitatively, rankings vary by network and horizon. On Porto10, SAC is the bes
   \caption{Baseline-scenario objective $J_{\mathrm{run}}$ for the 24-hour horizon (mean $\pm$ std over seeds). Lower is better.}
   \label{tab:baseline_J_24h}
   \scriptsize
+  \resizebox{\columnwidth}{!}{%
   \begin{tabular}{lcccc}
     \hline
     Method & Porto10 & Porto20 (600m) & Porto20 (900m) & Lisbon20 \\
@@ -369,7 +369,8 @@ Quantitatively, rankings vary by network and horizon. On Porto10, SAC is the bes
     LinUCB bandit & 11.33 $\pm$ 2.76 & 13.30 $\pm$ 1.34 & 138.64 $\pm$ 28.52 & 110.61 $\pm$ 33.99 \\
     SAC & 10.97 $\pm$ 1.73 & 10.87 $\pm$ 1.04 & 129.02 $\pm$ 24.58 & 104.63 $\pm$ 22.78 \\
     \hline
-  \end{tabular}
+  \end{tabular}%
+  }
 \end{table}
 
 
@@ -378,6 +379,7 @@ Quantitatively, rankings vary by network and horizon. On Porto10, SAC is the bes
   \caption{Baseline-scenario objective $J_{\mathrm{run}}$ for the 168-hour horizon (mean $\pm$ std over seeds). Lower is better.}
   \label{tab:baseline_J_168h}
   \scriptsize
+  \resizebox{\columnwidth}{!}{%
   \begin{tabular}{lcccc}
     \hline
     Method & Porto10 & Porto20 (600m) & Porto20 (900m) & Lisbon20 \\
@@ -389,6 +391,7 @@ Quantitatively, rankings vary by network and horizon. On Porto10, SAC is the bes
     SAC & 10.85 $\pm$ 1.03 & 27.28 $\pm$ 5.69 & 757.22 $\pm$ 128.84 & 528.16 $\pm$ 122.67 \\
     \hline
   \end{tabular}
+  }
 \end{table}
 
 
