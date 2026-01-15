@@ -74,7 +74,11 @@ Section \ref{sec:related_work} reviews related work; Section \ref{sec:materials_
 
 \section{\label{sec:related_work}Related work}
 
-TODO
+Shared mobility systems, such as ride-sharing, car-pooling, and micromobility, rely on the efficient matching of vehicle supply with user demand. A primary challenge in these systems is the imbalance of fleets caused by asymmetric travel patterns. Early literature predominantly addressed this via static mathematical optimization, using Mixed Integer Linear Programming (MILP) or heuristics to minimize travel costs or penalties for unmet demand. However, static approaches fail to account for the stochastic nature of demand and evolution of the system. Consequently, research evolved towards dynamic rebalancing and Simulation Optimization (SO), which integrates the simulation's ability to capture complex system dependencies and uncertainties with optimization techniques. Despite these advancements, significant gaps remain in applying SO to dockless systems due to their high-dimensional state spaces and modeling complexity.~\cite{mijnster2022sharedmobility_review}
+
+To address these limitations, Reinforcement Learning (RL) has emerged as a robust approach for optimizing shared mobility, including pricing, matching, and repositioning. Unlike greedy heuristics, RL agents optimize cumulative long-term rewards by interacting with the environment, being extremely useful in dynamic systems. Recent surveys highlight the efficacy of Deep Q-Networks (DQN) and policy gradient methods in learning complex dispatching and repositioning policies that outperform myopic strategies. Furthermore, Multi-Agent Reinforcement Learning (MARL) has been proposed to tackle the coordination challenges inherent in large-scale fleets, where individual driver agents must cooperate to achieve system-level equilibrium. However, realizing the full potential of RL requires overcoming challenges related to model complexity, agent coordination, and the sim-to-real gap.~\cite{QIN2022103852}
+
+While the aforementioned methodologies mainly prioritize operational efficiency (maximizing profits or trip fulfillment), recent publications argue for the integration of social objectives, specifically equity. Current rebalancing models often yield suboptimal distributions for disadvantaged communities, exacerbating accessibility gaps. New frameworks are beginning to address this by incorporating equity objectives, such as the Atkinson inequality index, into rebalancing optimization. For instance, machine learning-based approaches have been successfully employed to predict equity performance metrics, guiding rebalancing operations to minimize access inequality in dockless micromobility services. This shift highlights a critical gap in the broader literature: the need for unified frameworks that jointly optimize for diverse objectives: financial sustainability, operational efficiency, and equitable access. Balancing them within highly dynamic and stochastic shared mobility environments.~\cite{VILLAZAPATA2024100009}
 
 
 \section{\label{sec:materials_methods}Materials and Methods}
@@ -164,9 +168,7 @@ For completeness, the cumulative episode cost is $J_{\mathrm{tot}} = \sum_{t=0}^
 
 The cost components correspond to the Key Performance Indicators (KPIs) used to evaluate system performance.
 \begin{itemize}
-  \item $U_t$: \textbf{Unavailability rate}. Defined as
-  $U_t = 1 - \frac{\mathrm{served\_new}_t}{\max(1,\mathrm{demand}_t)}$,
-  i.e., the fraction of new arrivals that cannot be served immediately at step $t$.
+  \item $U_t$: \textbf{Unavailability rate}. Defined as $U_t = 1 - \frac{\mathrm{served\_new}_t}{\max(1,\mathrm{demand}_t)}$, i.e., the fraction of new arrivals that cannot be served immediately at step $t$.
   We also report \textbf{availability} as $A_t = 1 - U_t$ for interpretability.
   \item $R_t$: \textbf{Relocation distance}. Total kilometers traveled by the operator to rebalance scooters at step $t$.
   \item $C_t$: \textbf{Charging cost}. Charging cost in euros at step $t$, computed from energy consumed (kWh) and the unit electricity price.
