@@ -47,7 +47,7 @@ Across networks, SAC is consistently among the top-performing methods and achiev
 
 
 \begin{IEEEkeywords}
-Modelling, reinforcement learning, scooter fleet management, simulation
+Modelling, reinforcement learning, scooter fleet management, simulation, optimization
 \end{IEEEkeywords}
 
 \section{Introduction}
@@ -77,20 +77,17 @@ Section \ref{sec:related_work} reviews related work; Section \ref{sec:materials_
 
 
 \section{\label{sec:related_work}Related work}
-Shared mobility fleet management is typically studied via optimization and simulation for rebalancing under stochastic demand, and via learning-based control for adaptive repositioning. Mijnster~\cite{mijnster2022sharedmobility_review} surveys simulation--optimization approaches for matching supply and demand, Qin et al.~\cite{qin2022rl_ridesharing_survey} review RL methods for mobility-on-demand control under non-stationarity and long-horizon feedback, and Villa-Zapata et al.~\cite{villazapata2024equity_rebalancing} highlight multi-objective formulations (e.g., efficiency and equity) that motivate explicit trade-off analysis.
 
-
-
-
+TODO
 
 
 \section{\label{sec:materials_methods}Materials and Methods}
 
-The system is formalized as an agent-based discrete-time simulation shaped by the interactions between a single operator (the agent), the entities, and finite network resources. The agent acts by controlling specific parameters that influence either scooter relocation and charging. The primary entities are the customers and the vehicle fleet. Customers are modeled as transient entities represented by stochastic arrival events, while the fleet consists of vehicle counts circulating between nodes. These entities interact with stations, which function as passive resources within the system. Stations are characterized by static attributes such as geographic location, parking capacity (slots), and charger availability, effectively constraining the flow of entities by limiting parking and charging capacities.
+The system is formalized as an agent-based discrete-time simulation shaped by the interactions between a single operator (the agent), the entities, and finite network resources. The agent acts by controlling specific parameters that influence either scooter relocation and charging. The primary entities are the customers and the scooter fleet. Customers are modeled as transient entities represented by stochastic arrival events, while the fleet consists of vehicle counts circulating between stations (nodes). These entities interact with stations, which function as resources within the system. Stations are characterized by attributes such as geographic location, parking capacity, and charger availability, effectively constraining the flow of entities by limiting parking and charging capacities.
 
 The simulation operates within a dynamic environment (whose specific instantiation for the experiments conducted is defined in Table \ref{tab:env-configs}), subject to external variations, including time-of-day effects, weather conditions, and special events. These environmental factors, combined with the stochastic user demand, constitute the \textit{uncontrollable exogenous variables}, corresponding to the probabilistic part of the system, as detailed in \ref{sec:sim_dynamics}.
 
-The instantaneous status of the system is captured by state variables, which correspond to the \textit{endogenous variables} formally defined in \ref{sec:sim_state}. The evolution of this state is driven by customer arrivals, trip completions, and operator interventions, which trigger specific activities including vehicle rental, fleet relocation, and battery charging. The infrastructure parameters and resource limits that bound these activities form the \textit{controllable exogenous variables}, explored in \ref{sec:sim_config}. Additionally, the specific relocation and charging plans built by the operational policies at each time step are included in the controllable exogenous variables, as they are generated externally to the simulation dynamics, by the agent.
+The instantaneous status of the system is captured by state variables, which correspond to the \textit{endogenous variables} formally defined in \ref{sec:sim_state}. The evolution of this state is driven by customer arrivals, trip completions, and operator interventions, which trigger specific activities including scooter rental, fleet relocation, and battery charging. The infrastructure parameters and resource limits that bound these activities form the \textit{controllable exogenous variables}, explored in \ref{sec:sim_config}. Additionally, the specific relocation and charging plans built by the operational policies at each time step are included in the controllable exogenous variables, as they are generated externally to the simulation dynamics, by the agent.
 
 \subsection{\label{sec:sim_config}Simulation Configuration}
 The simulation environment is characterized by a set of controllable exogenous parameters (implemented in the \texttt{SimConfig} dataclass).
@@ -102,7 +99,7 @@ The simulation environment is characterized by a set of controllable exogenous p
   \item $\mathcal{D} \in \mathbb{R}^{N \times N}$: Distance, where $d_{ij}$ represents the distance (km) between station $i$ and $j$.
   \item $K \in \mathbb{N}^N$: Vector of station chargers at each node.
   \item $\rho \in \mathbb{R}^N$: Charging rate vector, where $\rho_i$ denotes the SoC gain per hour at station $i$.
-  \item $B$: Total battery capacity per vehicle (kWh).
+  \item $B$: Total battery capacity per scooter (kWh).
   \item $c_{energy}$: Unit cost of energy (€/kWh).
   \item $s_{min}$: Minimum SoC threshold required for a scooter to be eligible for rental. Always set to 0.15 (15\%).
   \item $\gamma_{res} \in \{0,1\}$: Operation policy parameter indicating if scooters connected to the grid should be reserved (unavailable for rental) during the active charging time step. For the experiments, this is always set to true.
@@ -140,11 +137,7 @@ User destinations are sampled from the origin-destination probability matrix $P 
 When a user departs, a vehicle is removed from $\mathbf{x}_t$, and a trip event is pushed to the trip heap $\Psi$.
 
 \subsubsection{Trip Completion}
-Trips scheduled to arrive at time $t$ are processed. For a trip arriving at $j$ with energy consumption $\delta_{soc}$:
-\begin{equation}
-  x_{j,t} \leftarrow \min(x_{j,t} + 1, C_j)
-\end{equation}
-If $x_{j,t} = C_j$, the station is full and the system attempts to reroute the user to the nearest available station.
+Trips scheduled to arrive at time $t$ are processed. If the stations if full, the system reroutes the scooter to the nearest station with available capacity, updating the used resources accordingly.
 
 \subsubsection{Relocation Actions}
 Following a relocation plan, an operator moves scooters between stations, updating stocks and energy mass accordingly. The relocation cost is computed as:
@@ -154,11 +147,7 @@ Following a relocation plan, an operator moves scooters between stations, updati
 where $k$ is the number of scooters relocated from station $i$ to $j$, constrained by available stock at $i$ and capacity at $j$.
 
 \subsubsection{Charging Logic}
-Charging is applied to idle scooters connected to plugs according to a charging plan. The number of charging scooters $k^{plug}_{i,t}$ is constrained by station stock $x_{i,t}$ and available chargers $K_i$. The energy mass update is:
-\begin{equation}
-  m_{i,t} \leftarrow m_{i,t} + k^{plug}_{i,t} \cdot \rho_i \cdot \frac{\Delta t}{60}.
-\end{equation}
-
+Charging is applied to idle scooters connected to plugs according to a charging plan. The number of charging scooters $k^{plug}_{i,t}$ is constrained by station stock $x_{i,t}$ and available chargers $K_i$.
 
 \subsubsection{\label{sec:objective}Optimization Objective}
 The objective is to minimize the \emph{time-averaged} normalized cost over an episode of length $T$ time steps, where
@@ -198,7 +187,7 @@ In this section, the implementation choices for the agent-environment interactio
 
 Scooter relocation and charging strategies, with which the agent intervenes in the system, take the form of a list of movements of $k$ scooters between station $i$ and $j$, and the number of scooters to be charged at each station, respectively. These plans are generated by algorithms referred to as \textit{operation policies}, but more distinctly as \textit{planners}. The planners are heuristic algorithms with explicitly defined rules, in contrast to \textit{control policies} learned through Reinforcement Learning (RL) techniques, which adapt based on experience and feedback from the environment, while mapping observations (system states) to actions.
 
-Furthermore, the agent's action vector contains the parameters used by the planners to generate these relocation and charging plans, $\mathbf{a}_t = [a_0, a_1, a_2, a_3] \in [0,1]^4$. Therefore, although the generated plans directly affect system behavior, they are not an independent control policy, transforming observations into actions. Instead, they represent an intermediate abstraction layer that heuristically translates the agent's actions into executable interventions in the environment.
+Furthermore, the agent's action vector contains the parameters used by the planners to generate these relocation and charging plans, $\mathbf{a}_t = [a_0, a_1, a_2, a_3]$. Therefore, although the generated plans directly affect system behavior, they are not an independent control policy, transforming observations into actions. Instead, they represent an intermediate abstraction layer that heuristically translates the agent's actions into executable interventions in the environment.
 
 As the decision-making authority and optimization objective remain with the agent's learned control policy, this renaming separates the two concepts. It clarifies that planners are not granted the same level of control, even though they derive their actions from the agent's outputs and may appear similar at a nomenclatural level.
 
@@ -230,7 +219,7 @@ As a result, the overall interaction loop at each time step $t$ is as follows: t
 
 \subsubsection{\label{sec:agents}Agents Implemented}
 
-The system evaluates four distinct agents, each representing a different approach to learning planner parameters within the bounded action space $\mathbf{a}_t \in [0,1]^4$.
+The system evaluates four distinct agents, each representing a different approach to learning planner parameters.
 
 \paragraph{Heuristic Agent}
 
@@ -258,7 +247,7 @@ The experimental simulation was implemented in Python, using the following libra
 \end{itemize}
 
 \subsection{\label{sec:environ_spec}External Data}
-The simulation environment is grounded in realistic topological data. The road network is extracted using OSMnx~\cite{https://doi.org/10.1111/gean.70009} from real cities, specifically selecting the bike-accessible network, as it most closely matches the one used by electric scooters. Each node is connected to every other node, with the edges retaining the shortest-path distance between them. This is done to abstract away the minute details of routing, which provide little meaning to the problem at hand, while preserving realistic inter-station distances. The travel time between stations is derived from these distances, assuming a constant average speed of 15 km/h, typical for shared electrical scooters in urban settings, and within the speed limits defined in Portuguese traffic legislation.
+The simulation environment is grounded in realistic topological data. The road network is extracted using OSMnx~\cite{https://doi.org/10.1111/gean.70009} from real cities, specifically selecting the bike-accessible network, as it most closely matches the one used by electric scooters. Each node is connected to every other node, with the edges retaining the shortest-path distance between them. This is done to abstract away the minute details of routing, which provide little meaning to the problem at hand, while preserving realistic inter-station distances. The travel time between stations is derived from these distances, assuming a constant average speed of 15 km/h, typical for shared electrical scooters in urban settings, and within the speed limits defined in Portuguese traffic legislation.~\cite{DL102B2020}.
 
 
 \subsection{Solution Design and Experimental Setup}
