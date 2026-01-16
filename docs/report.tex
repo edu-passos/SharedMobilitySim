@@ -291,7 +291,7 @@ Four scenarios were designed to evaluate agent robustness under varying demand c
 
 \begin{itemize}
   \item \textbf{Baseline}: Homogeneous demand with standard time-of-day variation across all stations, representing typical operational conditions with uniform $\lambda_i$ and regular diurnal patterns.
-  \item \textbf{Hotspot OD}: Introduces spatial demand heterogeneity designating specific stations as popular destinations, increasing their incoming trip probabilities in the origin-destination matrix $P$. This simulates real-world hotspots like commercial centers or tourist attractions that attract disproportionate demand.
+  \item \textbf{Hotspot OD}: Introduces spatial demand heterogeneity designating specific stations as popular destinations, increasing their incoming trip probabilities in the origin-destination matrix $P$. This simulates real-world hotspots like commercial centers or transit hubs that attract disproportionate demand.
   \item \textbf{Heterogeneous Lambda}: Assigns non-uniform base arrival rates $\lambda_i$ across stations, modeling intrinsic differences in station popularity due to location attributes (e.g., transit hubs vs. residential areas).
   \item \textbf{Event Heavy}: Applies stochastic event multipliers $f_{event}(t)$ on top of baseline demand, emulating sudden surges from concerts, sports matches, or weather disruptions that stress system capacity and charging reserves. Note that this does not increase demand on stations that are not affected by events.
 \end{itemize}
