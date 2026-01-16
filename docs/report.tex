@@ -118,7 +118,7 @@ Demand arrivals $\mathbf{A}_t$ follow a non-homogeneous Poisson process:
 \begin{equation}
   \lambda_{i,t}^{eff} = \lambda_i \cdot f_{time}(t) \cdot f_{weather}(t) \cdot f_{event}(t)
 \end{equation}
-where $\lambda_i$ is the base arrival rate at station $i$, and $f_{\text{time}}(t)$, $f_{\text{weather}}(t)$, and $f_{\text{event}}(t)$ are nonnegative multiplicative factors that model diurnal variation, weather attenuation, and localized event surges, respectively.
+where $\lambda_i$ is the base arrival rate at station $i$, and $f_{\text{time}}(t)$, $f_{\text{weather}}(t)$, and $f_{\text{event}}(t)$ are non-negative multiplicative factors that model diurnal variation, weather attenuation, and localized event surges, respectively.
 
 
 The number of served users is limited by the rentable stock of scooters ($s_{i,t} > s_{min}$).
@@ -127,7 +127,7 @@ User destinations are sampled from the origin-destination probability matrix $P 
 \begin{equation}
   p_{ij} = \frac{1}{N}, \quad \forall j \in \{1, \dots, N\}
 \end{equation}
-When a user departs, a vehicle is removed from $\mathbf{x}_t$, and a trip event is pushed to the trip heap $\Psi$.
+When a user departs, a vehicle is removed from $\mathbf{x}_{i,t}$, and a trip event is pushed to the trip heap $\Psi$.
 
 \subsubsection{Trip Completion}
 Trips scheduled to arrive at time $t$ are processed. If the stations if full, the system reroutes the scooter to the nearest station with available capacity, updating the used resources accordingly.
@@ -181,11 +181,11 @@ Scooter relocation and charging strategies, with which the agent intervenes in t
 
 Furthermore, the agent's action vector contains the parameters used by the planners to generate these relocation and charging plans, $\mathbf{a}_t = [a_0, a_1, a_2, a_3]$. Therefore, although the generated plans directly affect system behavior, they are not an independent control policy, transforming observations into actions. Instead, they represent an intermediate abstraction layer that heuristically translates the agent's actions into executable interventions in the environment.
 
-As the decision-making authority and optimization objective remain with the agent's learned control policy, this renaming separates the two concepts. It clarifies that planners are not granted the same level of control, even though they derive their actions from the agent's outputs and may appear similar at a nomenclatural level.
+As the decision-making authority and optimization objective remain with the agent's learned control policy, the renaming from \textit{operation policies} to \textit{planners} highlights this conceptual separation. It clarifies that planners are not granted the same level of control, even though they derive their actions from the agent's outputs and may appear similar at a nomenclatural level.
 
 \subsubsection{\label{sec:agent_env}Agent-Environment Interaction}
 
-The simulation environment was implemented according to a standard reinforcement learning interface, similar to that of Gymnasium~\cite{towers2024gymnasium}. This was achieved through the implementation of the \texttt{reset} and \texttt{step} methods, which initialize the environment and apply an action, respectively, as it provides better modularity and separation of concerns. This design choice allows for near-seamless integration with RL libraries, only requiring the wrapping of the environment to match the expected input and output data structures' formats.
+The simulation environment was implemented according to a standard reinforcement learning interface, similar to that of Gymnasium~\cite{towers2024gymnasium}. This was achieved through the implementation of the \texttt{reset} and \texttt{step} methods, which initialize the environment and apply an action, respectively. This design provides better modularity and separation of concerns, and allows for near-seamless integration with RL libraries, only requiring the wrapping of the environment to match the expected input and output data structures' formats.
 
 On the agent's actions, the previously explained abstraction from concrete plans to normalized parameters is crucial. It generalizes and simplifies the agent's decision-making process, allowing it to focus on high-level strategy rather than low-level operational details, enabling the use of continuous control algorithms that can efficiently explore and optimize within this bounded action space.
 
@@ -197,7 +197,7 @@ As a result, the overall interaction loop at each time step $t$ is as follows: t
 
 \begin{itemize}
   \item \textbf{Greedy Relocation}: Identifies stations with surplus of scooters (fill ratio $> \texttt{high}$) and deficit stations (fill ratio $< \texttt{low}$), then iteratively moves scooters to balance toward a \texttt{target} fill ratio. Donor stations are prioritized by proximity. The action components map to: $a_0 \rightarrow \texttt{low} \in [0.1, 0.3]$ and $a_1 \rightarrow \texttt{high} \in [0.6, 0.9]$, $a_2 \rightarrow \texttt{target} \in [0.4, 0.8]$.
-  \item \textbf{Budgeted Relocation}: Extends greedy logic with a hard constraint on total relocation distance (\texttt{km\_budget}), explicitly capping operational costs per time step. This prevents excessive redistribution in cost-sensitive scenarios. By adding complexity to the plan generation, it is used for comparison with greedy relocation.
+  \item \textbf{Budgeted Relocation}: Extends greedy logic with a strict constraint on total relocation distance (\texttt{km\_budget}), explicitly capping operational costs per time step. This prevents excessive redistribution in cost-sensitive scenarios. By adding complexity to the plan generation, it is used for comparison with greedy relocation.
   \item \textbf{No-op Relocation}: Returns an empty plan, serving as a baseline to quantify the impact of active rebalancing.
 \end{itemize}
 
@@ -219,15 +219,15 @@ A rule-based reactive controller that computes actions from observation features
 
 \paragraph{Episode-Level Bandit (UCB1)}
 
-A stateless multi-armed bandit that selects discrete planner parameter combinations in the form a fixed action (arm), that is selected every episode. The agent applies Upper Confidence Bound (UCB1) selection, balancing exploitation of high-performing arms with exploration of untried configurations. After all episodes are run, the agent converges to the arm with the highest average reward. As a very simple RL approach, it serves as a baseline to analyze the benefits of context-aware and continuous control agents.
+A stateless multi-armed bandit that selects discrete planner parameter combinations, in the form a fixed action (arm) that is selected every episode. The agent applies Upper Confidence Bound (UCB1) selection, balancing exploitation of high-performing arms with exploration of untried configurations. After all episodes are run, the agent chooses to the arm with the highest average reward. As a very simple RL approach, it serves as a baseline to analyze context-aware and continuous control agents.
 
 \paragraph{Contextual Bandit with Receding Horizon (LinUCB)}
 
-A context-aware bandit that selects arms within each simulation episode based on aggregated system features. The agent extracts a 16-dimensional context vector from observations (fill ratio statistics, SoC percentiles, queue metrics, time-of-day) and applies disjoint LinUCB with per-arm linear models. Arms correspond to discrete actions, reselected every \texttt{block\_minutes}. This receding-horizon strategy enables intra-episode adaptation to evolving conditions (e.g., shifting from low to high charging budget as SoC degrades), while maintaining exploration through ridge-regularized least-squares updates. The use of context and more frequent decision-making helps the agent respond quickly to changing conditions, while still learning effectively from limited data. This makes it a good choice for environments such as this project's, where demand patterns change over time and simple reactive strategies are not enough.
+A context-aware bandit that selects arms within each simulation episode based on aggregated system features. The agent extracts a 16-dimensional context vector from observations (fill ratio statistics, SoC percentiles, queue metrics, time-of-day) and applies disjoint LinUCB with per-arm linear models. Arms correspond to discrete actions, reselected every \texttt{block\_minutes}. This receding-horizon strategy enables intra-episode adaptation to evolving conditions (e.g., shifting from low to high charging budget as SoC degrades), while maintaining exploration through ridge-regularized least-squares updates. The use of context and more frequent decision-making helps the agent respond quickly to changing conditions, while still learning effectively from limited data. This makes it a good choice for environments such as this project's, where demand patterns change constantly.
 
 \paragraph{Soft Actor-Critic (SAC)}
 
-A Deep RL agent that learns a continuous control policy $\pi(\mathbf{o}_t) \rightarrow \mathbf{a}_t$ through off-policy actor-critic optimization. Observations are flattened into a single vector from per-station state and temporal features. The agent can use frame-skipping, reducing decision frequency to stabilize learning in long-horizon episodes and counteract noise from the stochastic processes. SAC's entropy-regularized objective encourages exploration while maximizing cumulative reward, enabling it to discover different action sequences that balance service quality and operational cost across the different scenarios. This model was chosen for its strong performance in continuous control tasks, and being able to capture relationships such as the trade-offs between relocation aggressiveness and charging intensity, which, with a balance between exploration and exploitation, is expected to yield superior results in a complex, stochastic environment such as this one.
+A Deep RL agent that learns a continuous control policy through off-policy actor-critic optimization. Observations are flattened into a single vector from per-station state and temporal features. The agent can use frame-skipping, reducing decision frequency to stabilize learning in long-horizon episodes and counteract noise from the stochastic processes. SAC's entropy-regularized objective encourages exploration while maximizing cumulative reward, enabling it to discover different action sequences that balance service quality and operational cost across the different scenarios. This model was chosen for its strong performance in continuous control tasks, and being able to capture relationships such as the trade-offs between relocation aggressiveness and charging intensity, which, with a balance between exploration and exploitation, is expected to yield superior results in a complex, stochastic environment such as this one.
 
 \subsubsection{Implementation Tools}
 The experimental simulation was implemented in Python, using the following libraries:
