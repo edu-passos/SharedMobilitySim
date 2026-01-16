@@ -15,6 +15,8 @@ __pycache__/
 **/docs/**/*.log
 **/docs/**/*.out
 **/docs/**/*.pdf
+!**/docs/**/report.pdf
+!**/docs/**/presentation.pdf
 **/docs/**/*.synctex.gz
 **/docs/**/*.toc
 
