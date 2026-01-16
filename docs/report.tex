@@ -219,7 +219,7 @@ A rule-based reactive controller that computes actions from observation features
 
 \paragraph{Episode-Level Bandit (UCB1)}
 
-A stateless multi-armed bandit that selects discrete planner parameter combinations, in the form a fixed action (arm) that is selected every episode. The agent applies Upper Confidence Bound (UCB1) selection, balancing exploitation of high-performing arms with exploration of untried configurations. After all episodes are run, the agent chooses to the arm with the highest average reward. As a very simple RL approach, it serves as a baseline to analyze context-aware and continuous control agents.
+A stateless multi-armed bandit that selects discrete planner parameter combinations, in the form a fixed action (arm) that is selected every episode. The agent applies Upper Confidence Bound (UCB1) selection, balancing exploitation of high-performing arms with exploration of ugntried configurations. After all episodes are run, the agent chooses to the arm with the highest average reward. As a very simple RL approach, it serves as a baseline to analyze context-aware and continuous control agents.
 
 \paragraph{Contextual Bandit with Receding Horizon (LinUCB)}
 
@@ -233,7 +233,7 @@ A Deep RL agent that learns a continuous control policy through off-policy actor
 The experimental simulation was implemented in Python, using the following libraries:
 \begin{itemize}
   \item \textbf{Gymnasium}~\cite{towers2024gymnasium}: The environment follows closely the standard Gymnasium interface, exposing the state representation observed and the action space to facilitate the integration of RL agents.
-  \item \textbf{StableBaselines3}~\cite{stable-baselines3}: Used for implementing advanced learning-based controllers, specifically the Soft Actor-Critic (SAC) agent used for continuous control experiments.
+  \item \textbf{StableBaselines3}~\cite{stable-baselines3}: Used for implementing advanced learning-based controllers, specifically the SAC agent used for continuous control experiments.
   \item \textbf{NumPy}~\cite{harris2020array}: For high-performance vectorized state updates, numerical computations and stochastic generations.
   \item \textbf{NetworkX}~\cite{SciPyProceedings_11}: For graph traversal, distance matrix computation, and managing network connectivity.
 \end{itemize}
