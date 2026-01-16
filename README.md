@@ -12,8 +12,8 @@
 
 ## Navigation
 
-- Presentation: [PDF](docs/presentation.pdf), [Source](docs/presentation.pptx)
-- Report: [PDF](docs/report.pdf), [Source](docs/report.tex)
+- Presentation: [PDF](docs/presentation/presentation.pdf), [Source](docs/presentation/presentation.pptx)
+- Report: [PDF](docs/report/report.pdf), [Source](docs/report/report.tex)
 - [Source Code](src/)
 - [HOWTO](HOWTO.md)
 - [GitHub Repository](https://github.com/edu-passos/SharedMobilitySim)
