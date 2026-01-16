@@ -11,10 +11,16 @@
 
 1. Install UV (if not already installed) by following the [instructions at the official website](https://docs.astral.sh/uv/getting-started/installation/).
 
-2. Install dependencies:
+2. Create virtual environment and install dependencies:
 
    ```bash
    uv sync
+   ```
+
+3. Activate the virtual environment:
+
+   ```bash
+   source .venv/bin/activate
    ```
 
 #### Option 2: Using pip
