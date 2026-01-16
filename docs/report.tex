@@ -232,7 +232,7 @@ A Deep RL agent that learns a continuous control policy through off-policy actor
 \subsubsection{Implementation Tools}
 The experimental simulation was implemented in Python, using the following libraries:
 \begin{itemize}
-  \item \textbf{Gymnasium}~\cite{towers2024gymnasium}: The environment follows closely the standard Gymnasium interface, exposing \texttt{observation\_space} (state representation observed) and \texttt{action\_space} (possible actions to apply) to facilitate the integration of RL agents.
+  \item \textbf{Gymnasium}~\cite{towers2024gymnasium}: The environment follows closely the standard Gymnasium interface, exposing the state representation observed and the action space to facilitate the integration of RL agents.
   \item \textbf{StableBaselines3}~\cite{stable-baselines3}: Used for implementing advanced learning-based controllers, specifically the Soft Actor-Critic (SAC) agent used for continuous control experiments.
   \item \textbf{NumPy}~\cite{harris2020array}: For high-performance vectorized state updates, numerical computations and stochastic generations.
   \item \textbf{NetworkX}~\cite{SciPyProceedings_11}: For graph traversal, distance matrix computation, and managing network connectivity.
